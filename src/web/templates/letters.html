@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Cartas - BotLinkedIn{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-envelope-paper"></i> Cartas Generadas</h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" onclick="showCoverModal()">
+            <i class="bi bi-plus"></i> Carta de Presentacion
+        </button>
+        <button class="btn btn-success" onclick="showRefModal()">
+            <i class="bi bi-plus"></i> Carta de Referencia
+        </button>
+    </div>
+</div>
+
+<!-- Letters list -->
+<div class="row g-3">
+    {% for letter in letters %}
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <span class="badge bg-{% if letter.letter_type == 'cover' %}primary{% else %}success{% endif %}">
+                        {{ 'Presentacion' if letter.letter_type == 'cover' else 'Referencia' }}
+                    </span>
+                    <small class="text-muted ms-2">{{ letter.tone }}</small>
+                </span>
+                <small class="text-muted">{{ str(letter.created_at)[:16] }}</small>
+            </div>
+            <div class="card-body">
+                <p class="card-text" style="white-space: pre-line; max-height: 200px; overflow-y: auto; font-size: 0.9rem;">{{ letter.content[:500] }}{% if letter.content|length > 500 %}...{% endif %}</p>
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <small class="text-muted">{{ letter.model_used }} | {{ letter.tokens_used or 0 }} tokens</small>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewLetter({{ letter.id }})">
+                        <i class="bi bi-eye"></i> Ver
+                    </button>
+                    <a href="/api/letters/{{ letter.id }}/download" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-download"></i> PDF
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% if not letters %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center text-muted py-5">
+                <i class="bi bi-envelope-paper fs-1 d-block mb-2"></i>
+                No hay cartas generadas. Crea una carta de presentacion o referencia.
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Cover letter modal -->
+<div class="modal fade" id="coverModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Generar Carta de Presentacion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">ID del Empleo</label>
+                    <input type="number" class="form-control" id="coverJobId" placeholder="Ej: 1">
+                    <small class="text-muted">Usa el ID de la seccion de Empleos</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tono</label>
+                    <select class="form-select" id="coverTone">
+                        <option value="formal">Formal</option>
+                        <option value="conversational">Conversacional</option>
+                        <option value="technical">Tecnico</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="generateCover()" id="btnGenCover">
+                    <i class="bi bi-magic"></i> Generar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reference letter modal -->
+<div class="modal fade" id="refModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Generar Carta de Referencia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Nombre del Recomendador</label>
+                    <input type="text" class="form-control" id="refName" placeholder="Ej: Maria Garcia">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Relacion</label>
+                    <input type="text" class="form-control" id="refRelationship" placeholder="Ej: Supervisor directo en Empresa X por 3 anos">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Cualidades a destacar</label>
+                    <textarea class="form-control" id="refQualities" rows="2" placeholder="Liderazgo, trabajo en equipo, habilidades tecnicas..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Proposito</label>
+                    <input type="text" class="form-control" id="refPurpose" value="Referencia profesional general">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="generateRef()" id="btnGenRef">
+                    <i class="bi bi-magic"></i> Generar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View letter modal -->
+<div class="modal fade" id="viewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Carta Completa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="letterContent" style="white-space: pre-wrap; font-family: Georgia, serif; font-size: 1rem; line-height: 1.6;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-outline-primary" onclick="copyLetter()">
+                    <i class="bi bi-clipboard"></i> Copiar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showCoverModal() {
+    new bootstrap.Modal(document.getElementById('coverModal')).show();
+}
+function showRefModal() {
+    new bootstrap.Modal(document.getElementById('refModal')).show();
+}
+
+async function generateCover() {
+    const btn = document.getElementById('btnGenCover');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
+
+    try {
+        const res = await fetch('/api/letters/cover', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                job_id: parseInt(document.getElementById('coverJobId').value),
+                tone: document.getElementById('coverTone').value,
+            }),
+        });
+        const data = await res.json();
+        if (data.id) {
+            bootstrap.Modal.getInstance(document.getElementById('coverModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + (data.detail || 'Error desconocido'));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic"></i> Generar';
+    }
+}
+
+async function generateRef() {
+    const btn = document.getElementById('btnGenRef');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
+
+    try {
+        const res = await fetch('/api/letters/reference', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                recommender_name: document.getElementById('refName').value,
+                relationship: document.getElementById('refRelationship').value,
+                qualities: document.getElementById('refQualities').value,
+                purpose: document.getElementById('refPurpose').value,
+            }),
+        });
+        const data = await res.json();
+        if (data.id) {
+            bootstrap.Modal.getInstance(document.getElementById('refModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + (data.detail || 'Error desconocido'));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic"></i> Generar';
+    }
+}
+
+async function viewLetter(letterId) {
+    try {
+        const res = await fetch(`/api/letters/${letterId}`);
+        const data = await res.json();
+        document.getElementById('letterContent').textContent = data.content;
+        window._currentLetterContent = data.content;
+        new bootstrap.Modal(document.getElementById('viewModal')).show();
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+function copyLetter() {
+    navigator.clipboard.writeText(window._currentLetterContent || '');
+    alert('Carta copiada al portapapeles');
+}
+</script>
+{% endblock %}

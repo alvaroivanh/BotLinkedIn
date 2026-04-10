@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - BotLinkedIn{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h2>
+
+<!-- Stats cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card bg-primary text-white">
+            <div class="card-body text-center">
+                <div class="stat-value">{{ stats.total_applications }}</div>
+                <div>Total Aplicaciones</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-success text-white">
+            <div class="card-body text-center">
+                <div class="stat-value">{{ stats.applied }}</div>
+                <div>Enviadas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-info text-white">
+            <div class="card-body text-center">
+                <div class="stat-value">{{ stats.interview }}</div>
+                <div>Entrevistas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card bg-warning text-dark">
+            <div class="card-body text-center">
+                <div class="stat-value">{{ stats.applications_today }}</div>
+                <div>Aplicaciones Hoy</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <div class="stat-value text-primary">{{ stats.total_jobs }}</div>
+                <div class="text-muted">Empleos Guardados</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <div class="stat-value text-success">{{ stats.total_letters }}</div>
+                <div class="text-muted">Cartas Generadas</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <div class="stat-value text-danger">{{ stats.rejected }}</div>
+                <div class="text-muted">Rechazadas</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick actions -->
+<div class="card">
+    <div class="card-header"><h5 class="mb-0">Acciones Rapidas</h5></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <button class="btn btn-outline-primary w-100 py-3" onclick="searchJobs()">
+                    <i class="bi bi-search fs-4 d-block mb-1"></i>
+                    Buscar Empleos
+                </button>
+            </div>
+            <div class="col-md-4">
+                <a href="/letters" class="btn btn-outline-success w-100 py-3">
+                    <i class="bi bi-envelope-paper fs-4 d-block mb-1"></i>
+                    Generar Carta
+                </a>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-outline-info w-100 py-3" onclick="testClaude()">
+                    <i class="bi bi-robot fs-4 d-block mb-1"></i>
+                    Test Claude API
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search modal -->
+<div class="modal fade" id="searchModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Buscar Empleos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Palabras clave</label>
+                    <input type="text" class="form-control" id="searchKeywords" placeholder="python developer, data engineer...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ubicacion</label>
+                    <input type="text" class="form-control" id="searchLocation" placeholder="Remote, New York...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Plataformas</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platLinkedin" checked>
+                        <label class="form-check-label" for="platLinkedin">LinkedIn</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platIndeed" checked>
+                        <label class="form-check-label" for="platIndeed">Indeed</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platGlassdoor">
+                        <label class="form-check-label" for="platGlassdoor">Glassdoor</label>
+                    </div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="searchRemote">
+                    <label class="form-check-label" for="searchRemote">Solo remoto</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="executeSearch()">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function searchJobs() {
+    new bootstrap.Modal(document.getElementById('searchModal')).show();
+}
+
+async function executeSearch() {
+    const platforms = [];
+    if (document.getElementById('platLinkedin').checked) platforms.push('linkedin');
+    if (document.getElementById('platIndeed').checked) platforms.push('indeed');
+    if (document.getElementById('platGlassdoor').checked) platforms.push('glassdoor');
+
+    const body = {
+        keywords: document.getElementById('searchKeywords').value,
+        location: document.getElementById('searchLocation').value,
+        platforms: platforms,
+        remote: document.getElementById('searchRemote').checked,
+    };
+
+    try {
+        const res = await fetch('/api/jobs/search', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        alert(`Se encontraron ${data.total} empleos.`);
+        bootstrap.Modal.getInstance(document.getElementById('searchModal')).hide();
+        location.reload();
+    } catch (e) {
+        alert('Error en la busqueda: ' + e.message);
+    }
+}
+
+async function testClaude() {
+    try {
+        const res = await fetch('/api/settings/test-claude', {method: 'POST'});
+        const data = await res.json();
+        if (data.status === 'ok') {
+            alert('Claude API funciona correctamente: ' + data.response);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (e) {
+        alert('Error de conexion: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

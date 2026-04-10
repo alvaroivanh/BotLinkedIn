@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Empleos - BotLinkedIn{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-briefcase"></i> Empleos Encontrados</h2>
+    <button class="btn btn-primary" onclick="searchJobs()">
+        <i class="bi bi-search"></i> Nueva Busqueda
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Plataforma</th>
+                        <th>Titulo</th>
+                        <th>Empresa</th>
+                        <th>Ubicacion</th>
+                        <th>Easy Apply</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td class="text-muted">{{ job.id }}</td>
+                        <td>
+                            <span class="badge bg-{% if job.platform == 'linkedin' %}primary{% elif job.platform == 'indeed' %}info{% else %}secondary{% endif %}">
+                                {{ job.platform }}
+                            </span>
+                        </td>
+                        <td><strong>{{ job.title[:50] }}</strong></td>
+                        <td>{{ job.company[:30] }}</td>
+                        <td>{{ (job.location or '')[:25] }}</td>
+                        <td>
+                            {% if job.is_easy_apply %}
+                            <span class="badge bg-success">Si</span>
+                            {% else %}
+                            <span class="badge bg-secondary">No</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ job.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                            <button class="btn btn-sm btn-outline-success" onclick="generateCover({{ job.id }})">
+                                <i class="bi bi-envelope-paper"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not jobs %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            No hay empleos guardados. Realiza una busqueda primero.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Search modal (same as dashboard) -->
+<div class="modal fade" id="searchModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Buscar Empleos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Palabras clave</label>
+                    <input type="text" class="form-control" id="searchKeywords" placeholder="python developer...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ubicacion</label>
+                    <input type="text" class="form-control" id="searchLocation" placeholder="Remote, Bogota...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Plataformas</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platLinkedin" checked>
+                        <label class="form-check-label" for="platLinkedin">LinkedIn</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platIndeed" checked>
+                        <label class="form-check-label" for="platIndeed">Indeed</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platGlassdoor">
+                        <label class="form-check-label" for="platGlassdoor">Glassdoor</label>
+                    </div>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="searchRemote">
+                    <label class="form-check-label" for="searchRemote">Solo remoto</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="executeSearch()">
+                    <i class="bi bi-search"></i> Buscar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function searchJobs() {
+    new bootstrap.Modal(document.getElementById('searchModal')).show();
+}
+
+async function executeSearch() {
+    const platforms = [];
+    if (document.getElementById('platLinkedin').checked) platforms.push('linkedin');
+    if (document.getElementById('platIndeed').checked) platforms.push('indeed');
+    if (document.getElementById('platGlassdoor').checked) platforms.push('glassdoor');
+
+    const body = {
+        keywords: document.getElementById('searchKeywords').value,
+        location: document.getElementById('searchLocation').value,
+        platforms: platforms,
+        remote: document.getElementById('searchRemote').checked,
+    };
+
+    try {
+        const res = await fetch('/api/jobs/search', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        alert(`Se encontraron ${data.total} empleos.`);
+        bootstrap.Modal.getInstance(document.getElementById('searchModal')).hide();
+        location.reload();
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function generateCover(jobId) {
+    if (!confirm('Generar carta de presentacion para este empleo?')) return;
+    try {
+        const res = await fetch('/api/letters/cover', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({job_id: jobId, tone: 'formal'}),
+        });
+        const data = await res.json();
+        if (data.id) {
+            alert('Carta generada exitosamente. Ve a la seccion de Cartas para verla.');
+        } else {
+            alert('Error: ' + (data.detail || 'Error desconocido'));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+</script>
+{% endblock %}
