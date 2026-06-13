@@ -34,11 +34,17 @@ class ClaudeClient:
         return response.content[0].text, total_tokens
 
 
-_client: ClaudeClient | None = None
+_client: "ClaudeClient | AgentClient | None" = None
 
 
-def get_client() -> ClaudeClient:
+def get_client() -> "ClaudeClient | AgentClient":
     global _client
     if _client is None:
-        _client = ClaudeClient()
+        if settings.ai_backend == "agent":
+            # Lazy import so the api backend never needs the Agent SDK installed.
+            from src.ai.agent_client import AgentClient
+
+            _client = AgentClient()
+        else:
+            _client = ClaudeClient()
     return _client
