@@ -1,10 +1,12 @@
 import json
 import re
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import JobResponse, JobSearchRequest
 from src.db.database import get_session
+from src.db.models import Application
 from src.db.repository import JobRepo, ResumeRepo, SearchHistoryRepo
 from src.scraper.models import SearchCriteria
 
@@ -131,7 +133,8 @@ def job_preview(job_id: int):
         raise HTTPException(status_code=404, detail="Job not found")
 
     description = job.description or ""
-    if not description and job.url:
+    # Re-fetch if missing or suspiciously short (e.g. only a meta snippet cached).
+    if (not description or len(description) < 300) and job.url:
         scraper = _get_scraper(job.platform)
         if scraper:
             try:
@@ -154,6 +157,49 @@ def job_preview(job_id: int):
     }
     session.close()
     return result
+
+
+@router.post("/{job_id}/applied")
+def mark_applied(job_id: int):
+    """Mark a job as applied so it shows up in the dashboard summary.
+
+    Creates (or updates) an Application with status 'applied' for the active
+    resume. Requires a resume to be loaded.
+    """
+    session = get_session()
+    try:
+        job = JobRepo(session).get_by_id(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Empleo no encontrado")
+
+        resume = ResumeRepo(session).get_active()
+        if not resume:
+            raise HTTPException(
+                status_code=400,
+                detail="Sube tu hoja de vida primero para llevar el control de postulaciones.",
+            )
+
+        existing = session.query(Application).filter_by(job_id=job_id).first()
+        if existing:
+            existing.status = "applied"
+            existing.applied_at = datetime.utcnow()
+            existing.updated_at = datetime.utcnow()
+            session.commit()
+            app_id = existing.id
+        else:
+            app = Application(
+                job_id=job_id,
+                resume_id=resume.id,
+                status="applied",
+                applied_at=datetime.utcnow(),
+            )
+            session.add(app)
+            session.commit()
+            app_id = app.id
+
+        return {"ok": True, "application_id": app_id, "status": "applied"}
+    finally:
+        session.close()
 
 
 @router.post("/search")

@@ -72,23 +72,34 @@ class _ColombianBase(BaseScraper):
         )
         self.delay = 2
 
+    # Candidate selectors that tend to hold the job description across the
+    # different Colombian boards (e.g. Computrabajo uses <p class="mbB">).
+    _DESC_SELECTORS = [
+        "p.mbB",
+        ".description-block",
+        "[class*=description]",
+        "div.box_detail",
+        "div.fl.w_100",
+        "article",
+    ]
+
     def get_details(self, job_url: str) -> JobPosting | None:
         try:
             resp = self.client.get(job_url)
             if resp.status_code != 200:
                 return None
             soup = BeautifulSoup(resp.text, "html.parser")
-            # Try a few common description containers, then fall back to meta.
-            node = (
-                soup.select_one(".description-block")
-                or soup.select_one("[class*=description]")
-                or soup.select_one("div.boxDetail")
-                or soup.select_one("article")
-            )
-            description = node.get_text("\n", strip=True) if node else ""
-            if not description:
+            # Collect candidate blocks and keep the longest (the real description).
+            blocks: list[str] = []
+            for sel in self._DESC_SELECTORS:
+                for el in soup.select(sel):
+                    blocks.append(el.get_text("\n", strip=True))
+            description = max(blocks, key=len) if blocks else ""
+            if len(description) < 80:
                 meta = soup.find("meta", attrs={"name": "description"})
-                description = meta.get("content", "") if meta else ""
+                meta_text = meta.get("content", "") if meta else ""
+                if len(meta_text) > len(description):
+                    description = meta_text
             return JobPosting(
                 external_id=_ext_id(job_url),
                 platform=self.PLATFORM,

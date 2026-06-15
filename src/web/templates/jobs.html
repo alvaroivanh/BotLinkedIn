@@ -119,13 +119,33 @@
             </div>
             <div class="modal-body" id="jpBody"></div>
             <div class="modal-footer">
-                <a href="#" id="jpOpen" target="_blank" rel="noopener" class="btn btn-outline-primary">
-                    <i class="bi bi-box-arrow-up-right"></i> Abrir en LinkedIn
+                <a href="#" id="jpOpen" target="_blank" rel="noopener" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir oferta
                 </a>
                 <button type="button" class="btn btn-success" id="jpCover">
                     <i class="bi bi-envelope-paper"></i> Generar carta
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- "Did you apply?" mini modal -->
+<div class="modal fade" id="appliedModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-question-circle"></i> ¿Aplicaste a esta oferta?</h6>
+            </div>
+            <div class="modal-body small text-muted" id="appliedBody">
+                Márcalo para llevar el control en el dashboard.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="appliedNo" data-bs-dismiss="modal">No</button>
+                <button type="button" class="btn btn-success btn-sm" id="appliedYes" onclick="confirmApplied()">
+                    <i class="bi bi-check-lg"></i> Sí, apliqué
+                </button>
             </div>
         </div>
     </div>
@@ -245,14 +265,22 @@ let _suggestionsLoaded = false;
 // (X-Frame-Options), so we load the scraped offer details from our own API
 // instead of the live page.
 let _jpModal = null;
+let _appliedModal = null;
+let _previewJobId = null;
 function openJobModal(jobId, url) {
+    _previewJobId = jobId;
     document.getElementById('jpOpen').href = url;
     document.getElementById('jpTitle').textContent = 'Oferta';
     document.getElementById('jpMeta').textContent = '';
     document.getElementById('jpBody').innerHTML =
         '<div class="text-center text-muted py-5">'
-        + '<span class="spinner-border"></span><div class="mt-2">Cargando oferta desde LinkedIn...</div></div>';
+        + '<span class="spinner-border"></span><div class="mt-2">Cargando oferta...</div></div>';
     document.getElementById('jpCover').onclick = () => generateCover(jobId);
+    // After opening the offer, ask whether the user applied.
+    document.getElementById('jpOpen').onclick = function () {
+        setTimeout(askApplied, 400);  // let the new tab open first
+        return true;                  // allow the link to open normally
+    };
 
     if (!_jpModal) _jpModal = new bootstrap.Modal(document.getElementById('jobPreviewModal'));
     _jpModal.show();
@@ -284,6 +312,50 @@ function openJobModal(jobId, url) {
                 '<div class="alert alert-danger mb-0">Error cargando la oferta: ' + e.message + '</div>';
         });
     return false;  // prevent the default tab navigation
+}
+
+// After opening an offer, ask whether the user applied (control in dashboard).
+function askApplied() {
+    const previewEl = document.getElementById('jobPreviewModal');
+    if (_jpModal) {
+        const onHidden = function () {
+            previewEl.removeEventListener('hidden.bs.modal', onHidden);
+            showAppliedModal();
+        };
+        previewEl.addEventListener('hidden.bs.modal', onHidden);
+        _jpModal.hide();
+    } else {
+        showAppliedModal();
+    }
+}
+
+function showAppliedModal() {
+    document.getElementById('appliedBody').innerHTML = 'Márcalo para llevar el control en el dashboard.';
+    document.getElementById('appliedYes').disabled = false;
+    if (!_appliedModal) _appliedModal = new bootstrap.Modal(document.getElementById('appliedModal'));
+    _appliedModal.show();
+}
+
+async function confirmApplied() {
+    const btn = document.getElementById('appliedYes');
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/jobs/' + _previewJobId + '/applied', { method: 'POST' });
+        const d = await res.json();
+        if (res.ok) {
+            document.getElementById('appliedBody').innerHTML =
+                '<span class="text-success">✅ Registrado. Aparecerá en el dashboard.</span>';
+            setTimeout(() => { if (_appliedModal) _appliedModal.hide(); }, 1000);
+        } else {
+            document.getElementById('appliedBody').innerHTML =
+                '<span class="text-danger">' + (d.detail || 'No se pudo registrar.') + '</span>';
+            btn.disabled = false;
+        }
+    } catch (e) {
+        document.getElementById('appliedBody').innerHTML =
+            '<span class="text-danger">Error: ' + e.message + '</span>';
+        btn.disabled = false;
+    }
 }
 
 function searchJobs() {
