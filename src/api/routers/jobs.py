@@ -174,28 +174,36 @@ def search_jobs(data: JobSearchRequest):
 
     # Save to DB
     session = get_session()
-    job_repo = JobRepo(session)
-    saved_jobs = []
-    for job in all_jobs:
-        saved = job_repo.upsert(
-            external_id=job.external_id,
-            platform=job.platform,
-            title=job.title,
-            company=job.company,
-            location=job.location,
-            url=job.url,
-            is_remote=job.is_remote,
-            is_easy_apply=job.is_easy_apply,
-            description=job.description,
+    try:
+        job_repo = JobRepo(session)
+        saved_jobs = []
+        for job in all_jobs:
+            saved = job_repo.upsert(
+                external_id=job.external_id,
+                platform=job.platform,
+                title=job.title,
+                company=job.company,
+                location=job.location,
+                url=job.url,
+                is_remote=job.is_remote,
+                is_easy_apply=job.is_easy_apply,
+                description=job.description,
+            )
+            saved_jobs.append(saved)
+
+        SearchHistoryRepo(session).save(
+            criteria.model_dump(), ",".join(data.platforms), len(all_jobs)
         )
-        saved_jobs.append(saved)
+        # Serialise while the session is still open; otherwise the ORM objects
+        # become detached and raise DetachedInstanceError.
+        response = {
+            "total": len(all_jobs),
+            "jobs": [JobResponse.model_validate(j) for j in saved_jobs],
+        }
+    finally:
+        session.close()
 
-    SearchHistoryRepo(session).save(
-        criteria.model_dump(), ",".join(data.platforms), len(all_jobs)
-    )
-    session.close()
-
-    return {"total": len(all_jobs), "jobs": [JobResponse.model_validate(j) for j in saved_jobs]}
+    return response
 
 
 def _get_scraper(platform: str):
