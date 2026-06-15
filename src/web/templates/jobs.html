@@ -122,6 +122,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="jpBody"></div>
+            <div class="px-3 pb-2"><div id="jpHint" class="small"></div></div>
             <div class="modal-footer">
                 <a href="#" id="jpOpen" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-primary">
                     <i class="bi bi-box-arrow-up-right"></i> Abrir oferta
@@ -276,6 +277,7 @@ function openJobModal(jobId, url) {
     document.getElementById('jpOpen').href = url;
     document.getElementById('jpTitle').textContent = 'Oferta';
     document.getElementById('jpMeta').textContent = '';
+    document.getElementById('jpHint').innerHTML = '';
     document.getElementById('jpBody').innerHTML =
         '<div class="text-center text-muted py-5">'
         + '<span class="spinner-border"></span><div class="mt-2">Cargando oferta...</div></div>';
@@ -295,6 +297,19 @@ function openJobModal(jobId, url) {
             document.getElementById('jpTitle').textContent = d.title || 'Oferta';
             document.getElementById('jpMeta').textContent =
                 [d.company, d.location].filter(Boolean).join(' · ');
+            // Some Colombian portals block direct access (403). Tell the user the
+            // full offer is already here and how to reach the portal to apply.
+            const portals = { computrabajo: 'https://co.computrabajo.com/', elempleo: 'https://www.elempleo.com/co/' };
+            const hint = document.getElementById('jpHint');
+            if (portals[d.platform]) {
+                hint.innerHTML =
+                    '<div class="alert alert-warning py-2 mb-0">⚠️ Este portal puede bloquear el acceso directo (403). '
+                    + 'La <strong>descripción completa ya está arriba</strong>. Para postularte, '
+                    + '<a href="' + portals[d.platform] + '" target="_blank" rel="noreferrer">abre primero el portal</a>, '
+                    + 'pasa su verificación y luego usa “Abrir oferta”.</div>';
+            } else {
+                hint.innerHTML = '';
+            }
             const desc = (d.description || '').trim();
             if (desc) {
                 const div = document.createElement('div');
