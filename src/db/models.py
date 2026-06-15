@@ -81,9 +81,47 @@ class Application(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Pipeline / Kanban ("el foso")
+    stage: Mapped[str] = mapped_column(String, default="postulado")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    stage_entered_at: Mapped[datetime | None] = mapped_column(DateTime)
+    outcome: Mapped[str | None] = mapped_column(String)  # aceptada/rechazada/declinada/sin_respuesta
+    priority: Mapped[str | None] = mapped_column(String)  # alta/media/baja
+    details: Mapped[str | None] = mapped_column(Text)  # JSON, per-stage flexible fields
+
     job: Mapped[Job] = relationship(back_populates="applications")
     resume: Mapped[Resume] = relationship(back_populates="applications")
     letters: Mapped[list[Letter]] = relationship(back_populates="application")
+    pipeline_notes: Mapped[list["ApplicationNote"]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+    reminders: Mapped[list["Reminder"]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+
+
+class ApplicationNote(Base):
+    __tablename__ = "application_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[int] = mapped_column(Integer, ForeignKey("applications.id"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    application: Mapped["Application"] = relationship(back_populates="pipeline_notes")
+
+
+class Reminder(Base):
+    __tablename__ = "reminders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[int] = mapped_column(Integer, ForeignKey("applications.id"), nullable=False)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime)
+    note: Mapped[str | None] = mapped_column(Text)
+    done: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    application: Mapped["Application"] = relationship(back_populates="reminders")
 
 
 class SearchHistory(Base):

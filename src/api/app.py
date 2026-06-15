@@ -10,6 +10,7 @@ from src.api.routers import (
     dashboard,
     jobs,
     letters,
+    pipeline,
     resume,
     settings as settings_router,
 )
@@ -29,6 +30,7 @@ templates = Jinja2Templates(directory=str(WEB_DIR / "templates"))
 
 # Include API routers
 app.include_router(dashboard.router)
+app.include_router(pipeline.router)
 app.include_router(chat.router)
 app.include_router(applications.router, prefix="/api/applications", tags=["applications"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])

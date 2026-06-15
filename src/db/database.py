@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.config import settings
@@ -20,8 +20,45 @@ SessionLocal = sessionmaker(bind=engine)
 
 
 def init_db():
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, then run light migrations."""
     Base.metadata.create_all(engine)
+    _migrate_applications()
+
+
+def _migrate_applications():
+    """Add the new pipeline columns to an existing applications table (SQLite-safe)."""
+    insp = inspect(engine)
+    if "applications" not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns("applications")}
+    new_cols = {
+        "stage": "VARCHAR DEFAULT 'postulado'",
+        "archived": "BOOLEAN DEFAULT 0",
+        "stage_entered_at": "DATETIME",
+        "outcome": "VARCHAR",
+        "priority": "VARCHAR",
+        "details": "TEXT",
+    }
+    added_stage = "stage" not in existing
+    with engine.begin() as conn:
+        for name, ddl in new_cols.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE applications ADD COLUMN {name} {ddl}"))
+        if added_stage:
+            # Backfill the pipeline stage from the legacy status.
+            conn.execute(text(
+                "UPDATE applications SET stage = CASE status "
+                "WHEN 'applied' THEN 'postulado' "
+                "WHEN 'interview' THEN 'entrevista' "
+                "WHEN 'offer' THEN 'oferta' "
+                "WHEN 'rejected' THEN 'cerrado' "
+                "ELSE 'postulado' END "
+                "WHERE stage IS NULL OR stage = ''"
+            ))
+            conn.execute(text(
+                "UPDATE applications SET stage_entered_at = created_at "
+                "WHERE stage_entered_at IS NULL"
+            ))
 
 
 def get_session() -> Session:

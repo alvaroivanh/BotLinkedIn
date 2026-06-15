@@ -153,6 +153,9 @@
                 <button type="button" class="btn btn-dark" id="jpCleanOpen" style="display:none" onclick="openClean()">
                     <i class="bi bi-window-stack"></i> Abrir en navegador limpio
                 </button>
+                <button type="button" class="btn btn-outline-dark" onclick="addToPipeline()">
+                    <i class="bi bi-kanban"></i> Guardar en pipeline
+                </button>
                 <button type="button" class="btn btn-success" id="jpCover">
                     <i class="bi bi-envelope-paper"></i> Generar carta
                 </button>
@@ -395,6 +398,18 @@ function markRowApplied(jobId) {
         badge.title = 'Ya te postulaste';
         badge.innerHTML = '<i class="bi bi-check-lg"></i> Aplicado';
         actions.insertBefore(badge, actions.firstChild);
+    }
+}
+
+// Add this job to the pipeline board at the "Guardado" stage.
+async function addToPipeline() {
+    try {
+        const res = await fetch('/api/pipeline/add-job/' + _previewJobId, { method: 'POST' });
+        const d = await res.json();
+        if (res.ok) showToast(d.existing ? 'Ya estaba en el pipeline (restaurado).' : '✅ Guardado en el pipeline.', 'success');
+        else showToast(d.detail || 'No se pudo guardar.', 'danger');
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
     }
 }
 

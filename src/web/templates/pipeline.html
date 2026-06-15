@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}Pipeline - BotLinkedIn{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pipe-board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; }
+    .pipe-col { flex: 0 0 230px; background: #eef0f4; border-radius: 12px; padding: 10px; }
+    .pipe-col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 13px; font-weight: 500; }
+    .pipe-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .pipe-col-body { min-height: 60px; }
+    .pipe-card { background: #fff; border: 1px solid #e6e8ef; border-radius: 8px; padding: 9px 10px; margin-bottom: 9px; cursor: pointer; }
+    .pipe-card:hover { border-color: #9aa3b2; }
+    .pipe-card .pc-title { font-size: 13px; font-weight: 500; line-height: 1.3; }
+    .pipe-card .pc-company { font-size: 12px; color: #6b7280; margin: 2px 0 6px; }
+    .pipe-badge { font-size: 11px; color: #fff; padding: 1px 7px; border-radius: 10px; }
+    .sortable-ghost { opacity: .4; }
+    .field-row { margin-bottom: 10px; }
+    .field-row label { font-size: 12px; color: #6b7280; display: block; margin-bottom: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0"><i class="bi bi-kanban"></i> Pipeline <span class="text-muted fs-6">· el foso</span></h2>
+    <span class="text-muted small">Arrastra las tarjetas entre columnas para mover el proceso.</span>
+</div>
+
+<div class="pipe-board">
+    {% for key, label, color in stages %}
+    <div class="pipe-col" data-stage="{{ key }}">
+        <div class="pipe-col-head">
+            <span><span class="pipe-dot" style="background:{{ color }}"></span>{{ label }}</span>
+            <span class="text-muted" data-count="{{ key }}">{{ columns[key]|length }}</span>
+        </div>
+        <div class="pipe-col-body" data-stage="{{ key }}">
+            {% for card in columns[key] %}
+            <div class="pipe-card" data-app-id="{{ card.id }}" onclick="openCard({{ card.id }})">
+                <div class="pc-title">{{ card.title[:48] }}</div>
+                <div class="pc-company">{{ card.company[:30] }}</div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="pipe-badge" style="background:{{ {'linkedin':'#0a66c2','indeed':'#2557a7','glassdoor':'#0caa41','computrabajo':'#1f8a70','elempleo':'#6f42c1'}.get(card.platform, '#6c757d') }}">{{ card.platform }}</span>
+                    {% if card.stage_entered_at %}<span class="text-muted" style="font-size:11px"><i class="bi bi-clock"></i> {{ card.stage_entered_at }}</span>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Card detail modal -->
+<div class="modal fade" id="cardModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div style="flex:1">
+                    <h5 class="modal-title mb-0" id="cardTitle">Proceso</h5>
+                    <div class="text-muted small" id="cardCompany"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Etapa</label>
+                        <select class="form-select" id="cardStage" onchange="changeStage()">
+                            <option value="guardado">Guardado</option>
+                            <option value="postulado">Postulado</option>
+                            <option value="contactado">Contactado</option>
+                            <option value="entrevista">Entrevista</option>
+                            <option value="oferta">Oferta</option>
+                            <option value="cerrado">Cerrado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Prioridad</label>
+                        <select class="form-select" id="cardPriority">
+                            <option value="">—</option>
+                            <option value="alta">Alta</option>
+                            <option value="media">Media</option>
+                            <option value="baja">Baja</option>
+                        </select>
+                    </div>
+                </div>
+
+                <h6 class="text-muted small text-uppercase">Campos de la etapa</h6>
+                <div id="cardFields" class="mb-2"></div>
+                <button class="btn btn-sm btn-primary mb-3" onclick="saveFields()"><i class="bi bi-check-lg"></i> Guardar campos</button>
+
+                <hr>
+                <h6 class="text-muted small text-uppercase"><i class="bi bi-bell"></i> Recordatorio de seguimiento</h6>
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-auto"><input type="date" class="form-control form-control-sm" id="remDate"></div>
+                    <div class="col"><input type="text" class="form-control form-control-sm" id="remNote" placeholder="Ej: llamar al reclutador"></div>
+                    <div class="col-auto"><button class="btn btn-sm btn-outline-warning" onclick="addReminder()">Agregar</button></div>
+                </div>
+                <div id="cardReminders" class="small mb-3"></div>
+
+                <hr>
+                <h6 class="text-muted small text-uppercase"><i class="bi bi-journal-text"></i> Notas</h6>
+                <div class="input-group input-group-sm mb-2">
+                    <input type="text" class="form-control" id="noteInput" placeholder="Escribe una nota..." onkeydown="if(event.key==='Enter')addNote()">
+                    <button class="btn btn-outline-secondary" onclick="addNote()">Agregar</button>
+                </div>
+                <div id="cardNotes" class="small"></div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="cardOpen" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-outline-primary me-auto"><i class="bi bi-box-arrow-up-right"></i> Abrir oferta</a>
+                <button class="btn btn-outline-secondary" onclick="archiveCard()"><i class="bi bi-archive"></i> Archivar</button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+const STAGE_FIELDS = {
+    guardado: [{k:'why',l:'Por qué me interesa',t:'textarea'}],
+    postulado: [{k:'applied_via',l:'Cómo me postulé'},{k:'applied_date',l:'Fecha de postulación',t:'date'},{k:'cover_used',l:'Carta usada'}],
+    contactado: [{k:'contacted_by',l:'Quién contactó'},{k:'contact_role',l:'Cargo del contacto'},{k:'channel',l:'Medio',t:'select',o:['Correo','Celular','LinkedIn','Teléfono','Otro']},{k:'contact_info',l:'Correo o celular'},{k:'contacted_at',l:'Fecha de contacto',t:'date'}],
+    entrevista: [{k:'interviewer',l:'Quién entrevistó'},{k:'interviewer_role',l:'Cargo'},{k:'interview_type',l:'Tipo',t:'select',o:['Virtual','Telefónica','Presencial']},{k:'interview_at',l:'Fecha y hora',t:'datetime-local'},{k:'duration_min',l:'Duración (min)',t:'number'},{k:'round',l:'Ronda'},{k:'expectations',l:'Expectativas / preguntas',t:'textarea'},{k:'impression',l:'Cómo me fue / próximos pasos',t:'textarea'}],
+    oferta: [{k:'salary',l:'Salario'},{k:'currency',l:'Moneda'},{k:'modality',l:'Modalidad',t:'select',o:['Remoto','Presencial','Híbrido']},{k:'benefits',l:'Beneficios',t:'textarea'},{k:'deadline',l:'Fecha límite',t:'date'}],
+    cerrado: [{k:'result',l:'Resultado',t:'select',o:['Aceptada','Rechazado','Decliné','Sin respuesta']},{k:'reason',l:'Motivo / aprendizajes',t:'textarea'}],
+};
+
+let _card = null, _modal = null, _dirty = false;
+
+document.querySelectorAll('.pipe-col-body').forEach(col => {
+    new Sortable(col, {
+        group: 'pipeline', animation: 150, ghostClass: 'sortable-ghost',
+        onAdd: async (evt) => {
+            const id = evt.item.dataset.appId;
+            const stage = evt.to.dataset.stage;
+            await fetch('/api/pipeline/' + id + '/stage', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({stage}),
+            });
+            showToast('Movido a "' + stage + '".', 'success');
+            recount();
+        },
+    });
+});
+
+function recount() {
+    document.querySelectorAll('.pipe-col-body').forEach(col => {
+        document.querySelector('[data-count="' + col.dataset.stage + '"]').textContent =
+            col.querySelectorAll('.pipe-card').length;
+    });
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+function renderFields(stage, details) {
+    const fields = STAGE_FIELDS[stage] || [];
+    document.getElementById('cardFields').innerHTML = fields.map(f => {
+        const v = details[f.k] || '';
+        let input;
+        if (f.t === 'textarea') input = '<textarea class="form-control form-control-sm" id="f_' + f.k + '" rows="2">' + esc(v) + '</textarea>';
+        else if (f.t === 'select') input = '<select class="form-select form-select-sm" id="f_' + f.k + '"><option value=""></option>' + f.o.map(o => '<option' + (o === v ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+        else input = '<input type="' + (f.t || 'text') + '" class="form-control form-control-sm" id="f_' + f.k + '" value="' + esc(v) + '">';
+        return '<div class="field-row"><label>' + f.l + '</label>' + input + '</div>';
+    }).join('') || '<div class="text-muted small">Sin campos para esta etapa.</div>';
+}
+
+async function openCard(id) {
+    const res = await fetch('/api/pipeline/' + id);
+    if (!res.ok) { showToast('No se pudo abrir el proceso.', 'danger'); return; }
+    _card = await res.json();
+    document.getElementById('cardTitle').textContent = _card.title || 'Proceso';
+    document.getElementById('cardCompany').textContent = [_card.company, _card.platform].filter(Boolean).join(' · ');
+    document.getElementById('cardStage').value = _card.stage;
+    document.getElementById('cardPriority').value = _card.priority || '';
+    document.getElementById('cardOpen').href = _card.url || '#';
+    renderFields(_card.stage, _card.details || {});
+    document.getElementById('cardNotes').innerHTML = (_card.notes || []).map(n =>
+        '<div class="border-bottom py-1"><span class="text-muted">' + n.created_at + '</span> · ' + esc(n.content) + '</div>').join('') || '<span class="text-muted">Sin notas.</span>';
+    document.getElementById('cardReminders').innerHTML = (_card.reminders || []).map(r =>
+        '<div><i class="bi bi-bell"></i> <strong>' + (r.due_date || 'sin fecha') + '</strong> ' + esc(r.note) + '</div>').join('') || '<span class="text-muted">Sin recordatorios.</span>';
+    if (!_modal) _modal = new bootstrap.Modal(document.getElementById('cardModal'));
+    document.getElementById('cardModal').addEventListener('hidden.bs.modal', () => { if (_dirty) location.reload(); }, {once: true});
+    _modal.show();
+}
+
+async function changeStage() {
+    const stage = document.getElementById('cardStage').value;
+    await fetch('/api/pipeline/' + _card.id + '/stage', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({stage}),
+    });
+    _card.stage = stage; _dirty = true;
+    renderFields(stage, _card.details || {});
+    showToast('Etapa actualizada.', 'success');
+}
+
+async function saveFields() {
+    const stage = document.getElementById('cardStage').value;
+    const details = {};
+    (STAGE_FIELDS[stage] || []).forEach(f => { details[f.k] = (document.getElementById('f_' + f.k) || {}).value || ''; });
+    _card.details = Object.assign(_card.details || {}, details);
+    await fetch('/api/pipeline/' + _card.id, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({details, priority: document.getElementById('cardPriority').value}),
+    });
+    showToast('Campos guardados.', 'success');
+}
+
+async function addNote() {
+    const input = document.getElementById('noteInput');
+    const content = input.value.trim();
+    if (!content) return;
+    const res = await fetch('/api/pipeline/' + _card.id + '/notes', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content}),
+    });
+    const d = await res.json();
+    const box = document.getElementById('cardNotes');
+    if (box.querySelector('.text-muted')) box.innerHTML = '';
+    box.insertAdjacentHTML('afterbegin', '<div class="border-bottom py-1"><span class="text-muted">' + (d.created_at || '') + '</span> · ' + esc(content) + '</div>');
+    input.value = '';
+}
+
+async function addReminder() {
+    const due = document.getElementById('remDate').value;
+    const note = document.getElementById('remNote').value.trim();
+    if (!due && !note) return;
+    await fetch('/api/pipeline/' + _card.id + '/reminder', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({due_date: due, note}),
+    });
+    document.getElementById('cardReminders').insertAdjacentHTML('afterbegin',
+        '<div><i class="bi bi-bell"></i> <strong>' + (due || 'sin fecha') + '</strong> ' + esc(note) + '</div>');
+    document.getElementById('remNote').value = '';
+    showToast('Recordatorio agregado.', 'success');
+}
+
+async function archiveCard() {
+    await fetch('/api/pipeline/' + _card.id + '/archive', {method: 'POST'});
+    showToast('Proceso archivado (no se borró).', 'info');
+    _modal.hide();
+    setTimeout(() => location.reload(), 800);
+}
+</script>
+{% endblock %}
