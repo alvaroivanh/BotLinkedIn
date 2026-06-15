@@ -1,8 +1,11 @@
+import json
+import re
+
 from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import JobResponse, JobSearchRequest
 from src.db.database import get_session
-from src.db.repository import JobRepo, SearchHistoryRepo
+from src.db.repository import JobRepo, ResumeRepo, SearchHistoryRepo
 from src.scraper.models import SearchCriteria
 
 router = APIRouter()
@@ -18,6 +21,57 @@ def list_jobs(limit: int = 50, offset: int = 0, search: str = ""):
         jobs = repo.list_all(limit=limit, offset=offset)
     session.close()
     return jobs
+
+
+@router.get("/suggestions")
+def job_suggestions():
+    """Suggest job-search queries based on the parsed resume (AI-assisted).
+
+    Declared before /{job_id} so the path isn't captured as a job id.
+    """
+    session = get_session()
+    resume = ResumeRepo(session).get_parsed_data()
+    session.close()
+    if not resume:
+        return {"location": "", "queries": [], "reason": "no_resume"}
+
+    skills = ", ".join(s.get("name", "") for s in (resume.get("skills") or [])[:12])
+    exps = "; ".join(
+        f"{e.get('title', '')} en {e.get('company', '')}"
+        for e in (resume.get("experiences") or [])[:5]
+    )
+    profile = (
+        f"Resumen: {resume.get('summary', '')}\n"
+        f"Habilidades: {skills}\n"
+        f"Experiencia: {exps}\n"
+        f"Idiomas: {', '.join(resume.get('languages') or [])}"
+    )
+
+    from src.ai.client import get_client
+
+    system = (
+        "Eres un asesor de búsqueda de empleo. A partir del perfil del candidato "
+        "propones consultas de búsqueda realistas (cargos o palabras clave) para "
+        "portales de empleo. Respondes SOLO con JSON válido, sin markdown."
+    )
+    user = (
+        "Perfil del candidato:\n" + profile + "\n\n"
+        "Devuelve un objeto JSON con exactamente estas claves:\n"
+        '- "location": ciudad o país sugerido como string (si no se infiere, "").\n'
+        '- "queries": lista de 6 strings; cada uno un término de búsqueda de empleo '
+        "(un cargo o palabra clave) adecuado al perfil.\n"
+        "Solo JSON."
+    )
+    try:
+        raw = get_client().generate(system=system, user=user, max_tokens=400)
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = json.loads(re.search(r"\{[\s\S]*\}", raw).group(0))
+        queries = [str(q) for q in (data.get("queries") or []) if str(q).strip()][:8]
+        return {"location": str(data.get("location") or ""), "queries": queries}
+    except Exception as exc:  # noqa: BLE001 - suggestions are best-effort
+        return {"location": "", "queries": [], "error": str(exc)}
 
 
 @router.get("/{job_id}", response_model=JobResponse)

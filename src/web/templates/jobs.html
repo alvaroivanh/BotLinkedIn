@@ -75,6 +75,18 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <!-- AI suggestions based on the parsed resume -->
+                <div class="mb-3" id="suggestionsWrap">
+                    <label class="form-label">
+                        <i class="bi bi-stars text-warning"></i> Sugerencias para tu perfil
+                    </label>
+                    <div id="suggestionsBox" class="d-flex flex-wrap gap-2">
+                        <span class="text-muted small">
+                            <span class="spinner-border spinner-border-sm"></span> Generando sugerencias...
+                        </span>
+                    </div>
+                </div>
+                <hr>
                 <div class="mb-3">
                     <label class="form-label">Palabras clave</label>
                     <input type="text" class="form-control" id="searchKeywords" placeholder="python developer...">
@@ -103,9 +115,12 @@
                     <label class="form-check-label" for="searchRemote">Solo remoto</label>
                 </div>
             </div>
+            <div class="px-3">
+                <div id="searchStatus" class="small"></div>
+            </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="executeSearch()">
+                <button type="button" class="btn btn-primary" id="btnSearch" onclick="executeSearch()">
                     <i class="bi bi-search"></i> Buscar
                 </button>
             </div>
@@ -116,8 +131,49 @@
 
 {% block extra_js %}
 <script>
+let _suggestionsLoaded = false;
+
 function searchJobs() {
     new bootstrap.Modal(document.getElementById('searchModal')).show();
+    if (!_suggestionsLoaded) {
+        _suggestionsLoaded = true;
+        loadSuggestions();
+    }
+}
+
+async function loadSuggestions() {
+    const box = document.getElementById('suggestionsBox');
+    try {
+        const res = await fetch('/api/jobs/suggestions');
+        const data = await res.json();
+
+        if (data.reason === 'no_resume') {
+            box.innerHTML = '<span class="text-muted small">Sube y procesa tu hoja de vida para ver sugerencias.</span>';
+            return;
+        }
+        if (!data.queries || !data.queries.length) {
+            box.innerHTML = '<span class="text-muted small">No se pudieron generar sugerencias.</span>';
+            return;
+        }
+        // Pre-fill location from the suggestion if empty.
+        const locInput = document.getElementById('searchLocation');
+        if (data.location && !locInput.value) locInput.value = data.location;
+
+        box.innerHTML = '';
+        data.queries.forEach(q => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'btn btn-sm btn-outline-primary rounded-pill';
+            chip.innerHTML = '<i class="bi bi-search"></i> ' + q;
+            chip.onclick = () => {
+                document.getElementById('searchKeywords').value = q;
+                executeSearch();
+            };
+            box.appendChild(chip);
+        });
+    } catch (e) {
+        box.innerHTML = '<span class="text-danger small">Error cargando sugerencias.</span>';
+    }
 }
 
 async function executeSearch() {
@@ -126,12 +182,32 @@ async function executeSearch() {
     if (document.getElementById('platIndeed').checked) platforms.push('indeed');
     if (document.getElementById('platGlassdoor').checked) platforms.push('glassdoor');
 
-    const body = {
-        keywords: document.getElementById('searchKeywords').value,
-        location: document.getElementById('searchLocation').value,
-        platforms: platforms,
-        remote: document.getElementById('searchRemote').checked,
-    };
+    const keywords = document.getElementById('searchKeywords').value.trim();
+    const location = document.getElementById('searchLocation').value.trim();
+    const status = document.getElementById('searchStatus');
+    const btn = document.getElementById('btnSearch');
+
+    if (!keywords) {
+        status.innerHTML = '<span class="text-danger">Escribe o elige una búsqueda.</span>';
+        return;
+    }
+    if (!platforms.length) {
+        status.innerHTML = '<span class="text-danger">Selecciona al menos una plataforma.</span>';
+        return;
+    }
+
+    // Show what is being searched.
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
+    status.innerHTML =
+        '<div class="alert alert-info py-2 mb-2">'
+        + '<span class="spinner-border spinner-border-sm"></span> '
+        + 'Buscando <strong>"' + keywords + '"</strong>'
+        + (location ? ' en <strong>' + location + '</strong>' : '')
+        + ' &middot; ' + platforms.join(', ') + '...'
+        + '</div>';
+
+    const body = {keywords, location, platforms, remote: document.getElementById('searchRemote').checked};
 
     try {
         const res = await fetch('/api/jobs/search', {
@@ -140,11 +216,21 @@ async function executeSearch() {
             body: JSON.stringify(body),
         });
         const data = await res.json();
-        alert(`Se encontraron ${data.total} empleos.`);
-        bootstrap.Modal.getInstance(document.getElementById('searchModal')).hide();
-        location.reload();
+        const total = data.total || 0;
+        status.innerHTML =
+            '<div class="alert alert-' + (total ? 'success' : 'warning') + ' py-2 mb-2">'
+            + (total
+                ? '✅ Se encontraron <strong>' + total + '</strong> empleos para "' + keywords + '". Actualizando...'
+                : '⚠️ No se encontraron empleos para "' + keywords + '". Prueba otra búsqueda.')
+            + '</div>';
+        if (total) {
+            setTimeout(() => location.reload(), 1200);
+        }
     } catch (e) {
-        alert('Error: ' + e.message);
+        status.innerHTML = '<div class="alert alert-danger py-2 mb-2">Error: ' + e.message + '</div>';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-search"></i> Buscar';
     }
 }
 
