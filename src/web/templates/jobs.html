@@ -36,9 +36,10 @@
                         <td>
                             {% if job.url %}
                             <a href="{{ job.url }}" target="_blank" rel="noopener"
-                               class="fw-bold text-decoration-none" title="{{ job.title }} (abrir oferta)">
+                               onclick="return openJobPopup(this.href)"
+                               class="fw-bold text-decoration-none" title="{{ job.title }} (abrir oferta en ventana)">
                                 {{ job.title[:50] }}
-                                <i class="bi bi-box-arrow-up-right small text-muted"></i>
+                                <i class="bi bi-window-stack small text-muted"></i>
                             </a>
                             {% else %}
                             <strong>{{ job.title[:50] }}</strong>
@@ -142,6 +143,16 @@
 {% block extra_js %}
 <script>
 let _suggestionsLoaded = false;
+
+// Open a job posting in a popup window so the user can review the offer
+// without leaving the dashboard. Falls back to a normal tab if the browser
+// blocks the popup.
+function openJobPopup(url) {
+    const features = 'popup=yes,noopener,width=1000,height=850,scrollbars=yes,resizable=yes';
+    const win = window.open(url, 'jobPreview', features);
+    if (win) { win.focus(); return false; }  // popup opened -> prevent default tab
+    return true;  // popup blocked -> let the normal link open
+}
 
 function searchJobs() {
     new bootstrap.Modal(document.getElementById('searchModal')).show();
