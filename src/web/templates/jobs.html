@@ -145,6 +145,14 @@
                         <input class="form-check-input" type="checkbox" id="platGlassdoor">
                         <label class="form-check-label" for="platGlassdoor">Glassdoor</label>
                     </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platComputrabajo" checked>
+                        <label class="form-check-label" for="platComputrabajo">Computrabajo <span class="badge bg-light text-dark">🇨🇴</span></label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platElempleo" checked>
+                        <label class="form-check-label" for="platElempleo">elempleo <span class="badge bg-light text-dark">🇨🇴</span></label>
+                    </div>
                 </div>
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="searchRemote">
@@ -267,6 +275,8 @@ async function executeSearch() {
     if (document.getElementById('platLinkedin').checked) platforms.push('linkedin');
     if (document.getElementById('platIndeed').checked) platforms.push('indeed');
     if (document.getElementById('platGlassdoor').checked) platforms.push('glassdoor');
+    if (document.getElementById('platComputrabajo').checked) platforms.push('computrabajo');
+    if (document.getElementById('platElempleo').checked) platforms.push('elempleo');
 
     const keywords = document.getElementById('searchKeywords').value.trim();
     const location = document.getElementById('searchLocation').value.trim();

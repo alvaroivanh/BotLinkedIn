@@ -216,4 +216,10 @@ def _get_scraper(platform: str):
     elif platform == "glassdoor":
         from src.scraper.glassdoor import GlassdoorScraper
         return GlassdoorScraper()
+    elif platform == "computrabajo":
+        from src.scraper.colombian import ComputrabajoScraper
+        return ComputrabajoScraper()
+    elif platform == "elempleo":
+        from src.scraper.colombian import ElempleoScraper
+        return ElempleoScraper()
     return None
