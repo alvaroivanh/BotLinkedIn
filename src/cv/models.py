@@ -1,13 +1,40 @@
-from pydantic import BaseModel
+from typing import get_origin
+
+from pydantic import BaseModel, model_validator
 
 
-class Skill(BaseModel):
+class _NullTolerant(BaseModel):
+    """Base model that coerces JSON ``null`` into sensible defaults.
+
+    LLMs frequently emit ``null`` for unknown fields (e.g. an experience with no
+    ``location``). Pydantic's field defaults only apply when a key is *absent*,
+    not when it is explicitly ``None``, so without this a single ``null`` would
+    fail validation and discard the whole extraction. Here we map ``None`` to
+    ``""`` for string fields and ``[]`` for list fields before validation.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_nulls(cls, data):
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        for name, field in cls.model_fields.items():
+            if out.get(name) is None and name in out:
+                if get_origin(field.annotation) is list:
+                    out[name] = []
+                elif field.annotation is str:
+                    out[name] = ""
+        return out
+
+
+class Skill(_NullTolerant):
     name: str
     category: str = ""
     proficiency: str = ""
 
 
-class Experience(BaseModel):
+class Experience(_NullTolerant):
     company: str
     title: str
     start_date: str = ""
@@ -16,7 +43,7 @@ class Experience(BaseModel):
     location: str = ""
 
 
-class Education(BaseModel):
+class Education(_NullTolerant):
     institution: str
     degree: str = ""
     field: str = ""
@@ -25,7 +52,7 @@ class Education(BaseModel):
     gpa: str = ""
 
 
-class ResumeData(BaseModel):
+class ResumeData(_NullTolerant):
     name: str = ""
     email: str = ""
     phone: str = ""
