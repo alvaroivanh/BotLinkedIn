@@ -201,5 +201,25 @@ async function send() {
         input.focus();
     }
 }
+
+// If arrived from a job offer (/chat?job=ID), ask Alex how to tune the resume.
+(async function () {
+    const jobId = new URLSearchParams(location.search).get('job');
+    if (!jobId) return;
+    try {
+        const res = await fetch('/api/jobs/' + jobId + '/preview');
+        const d = await res.json();
+        const desc = (d.description || '').slice(0, 900);
+        const matchTxt = (d.match != null) ? ('Mi HV se ajusta ~' + d.match + '% a esta oferta. ') : '';
+        addBubble('user', '¿Cómo ajusto mi HV para "' + (d.title || '') + '" en ' + (d.company || '') + '?');
+        history.push({ role: 'user', content:
+            'Quiero postularme a esta oferta: "' + (d.title || '') + '" en ' + (d.company || '') +
+            '.\n\nDescripción de la oferta:\n' + desc + '\n\n' + matchTxt +
+            '¿Cómo debo ajustar mi hoja de vida para encajar mejor en ESTA oferta? Dame consejos concretos: qué resaltar, qué palabras clave agregar y qué experiencia destacar.' });
+        send();
+    } catch (e) {
+        addBubble('system', 'No se pudo cargar la oferta.');
+    }
+})();
 </script>
 {% endblock %}

@@ -146,6 +146,11 @@ def job_preview(job_id: int):
             except Exception:  # noqa: BLE001 - preview is best-effort
                 pass
 
+    from src.cv.matcher import match_score
+
+    resume = ResumeRepo(session).get_parsed_data()
+    match = match_score(resume, job.title, description) if resume else None
+
     result = {
         "id": job.id,
         "title": job.title,
@@ -154,6 +159,7 @@ def job_preview(job_id: int):
         "url": job.url,
         "platform": job.platform,
         "description": description,
+        "match": match,
     }
     session.close()
     return result

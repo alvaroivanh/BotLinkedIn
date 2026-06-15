@@ -5,8 +5,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from src.api.schemas import DashboardStats
+from src.cv.matcher import match_score
 from src.db.database import get_session
-from src.db.repository import ApplicationRepo, JobRepo, LetterRepo
+from src.db.repository import ApplicationRepo, JobRepo, LetterRepo, ResumeRepo
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent.parent / "web" / "templates"))
@@ -33,9 +34,17 @@ def jobs_page(request: Request):
     session = get_session()
     jobs = JobRepo(session).list_all(limit=1000)
     applied_ids = {a.job_id for a in ApplicationRepo(session).list_all(status="applied")}
+    resume = ResumeRepo(session).get_parsed_data()
+    # % match between the resume and each job (heuristic, no AI cost).
+    match_scores = (
+        {j.id: match_score(resume, j.title, j.description or "") for j in jobs}
+        if resume else {}
+    )
     session.close()
     return templates.TemplateResponse(
-        request, "jobs.html", {"jobs": jobs, "applied_ids": applied_ids}
+        request,
+        "jobs.html",
+        {"jobs": jobs, "applied_ids": applied_ids, "match_scores": match_scores},
     )
 
 

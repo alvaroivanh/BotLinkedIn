@@ -27,6 +27,7 @@
                         <th>ID</th>
                         <th>Plataforma</th>
                         <th>Título</th>
+                        <th>% HV</th>
                         <th>Empresa</th>
                         <th>Ubicación</th>
                         <th>Modalidad</th>
@@ -47,6 +48,7 @@
                             </select>
                         </th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar título"></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="mín %"></th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar empresa"></th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar ubicación"></th>
                         <th>
@@ -88,6 +90,14 @@
                             </a>
                             {% else %}
                             <strong>{{ job.title[:60] }}</strong>
+                            {% endif %}
+                        </td>
+                        {% set score = match_scores.get(job.id) if match_scores else none %}
+                        <td data-order="{{ score if score is not none else -1 }}">
+                            {% if score is not none %}
+                            <span class="badge bg-{% if score >= 60 %}success{% elif score >= 40 %}warning text-dark{% else %}secondary{% endif %}" title="Ajuste de tu HV a esta oferta">{{ score }}%</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td>{{ job.company[:35] }}</td>
@@ -141,6 +151,7 @@
                 <div>
                     <h5 class="modal-title mb-0" id="jpTitle">Oferta</h5>
                     <div class="text-muted small" id="jpMeta"></div>
+                    <div id="jpMatch" class="mt-1"></div>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -155,6 +166,9 @@
                 </button>
                 <button type="button" class="btn btn-outline-dark" onclick="addToPipeline()">
                     <i class="bi bi-kanban"></i> Guardar en seguimiento
+                </button>
+                <button type="button" class="btn btn-info" onclick="askAlex()">
+                    <i class="bi bi-robot"></i> Consejo de Alex (ajustar HV)
                 </button>
                 <button type="button" class="btn btn-success" id="jpCover">
                     <i class="bi bi-envelope-paper"></i> Generar carta
@@ -277,12 +291,24 @@ $(document).ready(function () {
         orderCellsTop: true,
         pageLength: 15,
         lengthMenu: [10, 15, 25, 50, 100],
-        order: [[6, 'desc']],  // newest by date first (Fecha column)
+        order: [[7, 'desc']],  // newest by date first (Fecha column)
         columnDefs: [{ targets: 'no-sort', orderable: false, searchable: false }],
         language: { url: 'https://cdn.datatables.net/plug-ins/2.1.8/i18n/es-ES.json' }
     });
-    // Wire each filter input/select in the .filters header row to its column.
+    // Minimum-% filter on the "% HV" column (index 3).
+    const minPct = $('#jobsTable thead tr.filters th').eq(3).find('input');
+    DataTable.ext.search.push(function (settings, data) {
+        if (settings.nTable.id !== 'jobsTable') return true;
+        const m = parseInt(minPct.val(), 10);
+        if (isNaN(m)) return true;
+        const v = parseInt((data[3] || '').replace('%', ''), 10);
+        return isNaN(v) ? false : v >= m;
+    });
+    minPct.on('click', e => e.stopPropagation());
+    minPct.on('keyup change', () => table.draw());
+    // Wire each other filter input/select in the .filters header row to its column.
     table.columns().every(function (index) {
+        if (index === 3) return;  // % column handled by the min filter above
         const column = this;
         const cell = $('#jobsTable thead tr.filters th').eq(index);
         const field = cell.find('input, select');
@@ -307,6 +333,7 @@ function openJobModal(jobId, url) {
     document.getElementById('jpTitle').textContent = 'Oferta';
     document.getElementById('jpMeta').textContent = '';
     document.getElementById('jpHint').innerHTML = '';
+    document.getElementById('jpMatch').innerHTML = '';
     document.getElementById('jpCleanOpen').style.display = 'none';
     document.getElementById('jpBody').innerHTML =
         '<div class="text-center text-muted py-5">'
@@ -327,6 +354,10 @@ function openJobModal(jobId, url) {
             document.getElementById('jpTitle').textContent = d.title || 'Oferta';
             document.getElementById('jpMeta').textContent =
                 [d.company, d.location].filter(Boolean).join(' · ');
+            const m = d.match;
+            document.getElementById('jpMatch').innerHTML = (m != null)
+                ? '<span class="badge bg-' + (m >= 60 ? 'success' : m >= 40 ? 'warning text-dark' : 'secondary') + '"><i class="bi bi-graph-up-arrow"></i> Tu HV se ajusta ' + m + '% a esta oferta</span>'
+                : '';
             // Some Colombian portals block direct access (403). Tell the user the
             // full offer is already here and how to reach the portal to apply.
             const portals = { computrabajo: 'https://co.computrabajo.com/', elempleo: 'https://www.elempleo.com/co/' };
@@ -399,6 +430,11 @@ function markRowApplied(jobId) {
         badge.innerHTML = '<i class="bi bi-check-lg"></i> Aplicado';
         actions.insertBefore(badge, actions.firstChild);
     }
+}
+
+// Open the chat with Alex, passing this offer as context for HV advice.
+function askAlex() {
+    window.location.href = '/chat?job=' + _previewJobId;
 }
 
 // Add this job to the pipeline board at the "Guardado" stage.
