@@ -121,12 +121,24 @@ const STAGE_FIELDS = {
     guardado: [{k:'why',l:'Por qué me interesa',t:'textarea'}],
     postulado: [{k:'applied_via',l:'Cómo me postulé'},{k:'applied_date',l:'Fecha de postulación',t:'date'},{k:'cover_used',l:'Carta usada'}],
     contactado: [{k:'contacted_by',l:'Quién contactó'},{k:'contact_role',l:'Cargo del contacto'},{k:'channel',l:'Medio',t:'select',o:['Correo','Celular','LinkedIn','Teléfono','Otro']},{k:'contact_info',l:'Correo o celular'},{k:'contacted_at',l:'Fecha de contacto',t:'date'}],
-    entrevista: [{k:'interviewer',l:'Quién entrevistó'},{k:'interviewer_role',l:'Cargo'},{k:'interview_type',l:'Tipo',t:'select',o:['Virtual','Telefónica','Presencial']},{k:'interview_at',l:'Fecha y hora',t:'datetime-local'},{k:'duration_min',l:'Duración (min)',t:'number'},{k:'round',l:'Ronda'},{k:'expectations',l:'Expectativas / preguntas',t:'textarea'},{k:'impression',l:'Cómo me fue / próximos pasos',t:'textarea'}],
     oferta: [{k:'salary',l:'Salario'},{k:'currency',l:'Moneda'},{k:'modality',l:'Modalidad',t:'select',o:['Remoto','Presencial','Híbrido']},{k:'benefits',l:'Beneficios',t:'textarea'},{k:'deadline',l:'Fecha límite',t:'date'}],
     cerrado: [{k:'result',l:'Resultado',t:'select',o:['Aceptada','Rechazado','Decliné','Sin respuesta']},{k:'reason',l:'Motivo / aprendizajes',t:'textarea'}],
 };
 
-let _card = null, _modal = null, _dirty = false;
+// The interview stage supports MULTIPLE interviews (Entrevista 1, 2, ...),
+// each with its own fields, stored as details.interviews = [ {...}, {...} ].
+const INTERVIEW_FIELDS = [
+    {k:'interviewer',l:'Quién entrevistó'},
+    {k:'interviewer_role',l:'Cargo'},
+    {k:'type',l:'Tipo',t:'select',o:['Virtual','Telefónica','Presencial']},
+    {k:'at',l:'Fecha y hora',t:'datetime-local'},
+    {k:'duration_min',l:'Duración (min)',t:'number'},
+    {k:'round',l:'Ronda / etiqueta'},
+    {k:'expectations',l:'Expectativas / preguntas',t:'textarea'},
+    {k:'impression',l:'Cómo me fue / próximos pasos',t:'textarea'},
+];
+
+let _card = null, _modal = null, _dirty = false, _interviews = [];
 
 document.querySelectorAll('.pipe-col-body').forEach(col => {
     new Sortable(col, {
@@ -153,7 +165,45 @@ function recount() {
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 
+function fieldInput(id, f, v) {
+    if (f.t === 'textarea') return '<textarea class="form-control form-control-sm" id="' + id + '" rows="2">' + esc(v) + '</textarea>';
+    if (f.t === 'select') return '<select class="form-select form-select-sm" id="' + id + '"><option value=""></option>' + f.o.map(o => '<option' + (o === v ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+    return '<input type="' + (f.t || 'text') + '" class="form-control form-control-sm" id="' + id + '" value="' + esc(v) + '">';
+}
+
+function renderInterviews() {
+    const box = document.getElementById('cardFields');
+    box.innerHTML = _interviews.map((iv, idx) => {
+        const fieldsHtml = INTERVIEW_FIELDS.map(f =>
+            '<div class="field-row"><label>' + f.l + '</label>' + fieldInput('iv_' + idx + '_' + f.k, f, iv[f.k] || '') + '</div>'
+        ).join('');
+        return '<div class="border rounded p-2 mb-2" style="background:#fafbfd">'
+            + '<div class="d-flex justify-content-between align-items-center mb-2">'
+            + '<strong class="small">Entrevista ' + (idx + 1) + '</strong>'
+            + (_interviews.length > 1 ? '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeInterview(' + idx + ')"><i class="bi bi-trash"></i></button>' : '')
+            + '</div>' + fieldsHtml + '</div>';
+    }).join('');
+    box.insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-sm btn-outline-secondary" onclick="addInterview()"><i class="bi bi-plus"></i> Agregar entrevista</button>');
+}
+
+function collectInterviews() {
+    _interviews = _interviews.map((iv, idx) => {
+        const obj = {};
+        INTERVIEW_FIELDS.forEach(f => { const el = document.getElementById('iv_' + idx + '_' + f.k); if (el) obj[f.k] = el.value; });
+        return obj;
+    });
+}
+
+function addInterview() { collectInterviews(); _interviews.push({}); renderInterviews(); }
+function removeInterview(i) { collectInterviews(); _interviews.splice(i, 1); if (!_interviews.length) _interviews = [{}]; renderInterviews(); }
+
 function renderFields(stage, details) {
+    if (stage === 'entrevista') {
+        _interviews = Array.isArray(details.interviews) ? details.interviews.slice() : [];
+        if (!_interviews.length) _interviews = [{}];
+        renderInterviews();
+        return;
+    }
     const fields = STAGE_FIELDS[stage] || [];
     document.getElementById('cardFields').innerHTML = fields.map(f => {
         const v = details[f.k] || '';
@@ -196,8 +246,13 @@ async function changeStage() {
 
 async function saveFields() {
     const stage = document.getElementById('cardStage').value;
-    const details = {};
-    (STAGE_FIELDS[stage] || []).forEach(f => { details[f.k] = (document.getElementById('f_' + f.k) || {}).value || ''; });
+    let details = {};
+    if (stage === 'entrevista') {
+        collectInterviews();
+        details = { interviews: _interviews };
+    } else {
+        (STAGE_FIELDS[stage] || []).forEach(f => { details[f.k] = (document.getElementById('f_' + f.k) || {}).value || ''; });
+    }
     _card.details = Object.assign(_card.details || {}, details);
     await fetch('/api/pipeline/' + _card.id, {
         method: 'PATCH', headers: {'Content-Type': 'application/json'},
