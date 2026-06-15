@@ -163,6 +163,7 @@ def search_jobs(data: JobSearchRequest):
         location=data.location,
         remote=data.remote,
         platforms=data.platforms,
+        posted_within_hours=data.posted_within_hours,
     )
 
     all_jobs = []

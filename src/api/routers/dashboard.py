@@ -17,7 +17,7 @@ def dashboard_page(request: Request):
     session = get_session()
     stats = _get_stats(session)
     session.close()
-    return templates.TemplateResponse("dashboard.html", {"request": request, "stats": stats})
+    return templates.TemplateResponse(request, "dashboard.html", {"stats": stats})
 
 
 @router.get("/applications", response_class=HTMLResponse)
@@ -25,15 +25,15 @@ def applications_page(request: Request):
     session = get_session()
     apps = ApplicationRepo(session).list_all()
     session.close()
-    return templates.TemplateResponse("applications.html", {"request": request, "applications": apps})
+    return templates.TemplateResponse(request, "applications.html", {"applications": apps})
 
 
 @router.get("/jobs", response_class=HTMLResponse)
 def jobs_page(request: Request):
     session = get_session()
-    jobs = JobRepo(session).list_all(limit=50)
+    jobs = JobRepo(session).list_all(limit=1000)
     session.close()
-    return templates.TemplateResponse("jobs.html", {"request": request, "jobs": jobs})
+    return templates.TemplateResponse(request, "jobs.html", {"jobs": jobs})
 
 
 @router.get("/letters", response_class=HTMLResponse)
@@ -41,7 +41,7 @@ def letters_page(request: Request):
     session = get_session()
     letters = LetterRepo(session).list_all()
     session.close()
-    return templates.TemplateResponse("letters.html", {"request": request, "letters": letters})
+    return templates.TemplateResponse(request, "letters.html", {"letters": letters})
 
 
 @router.get("/api/dashboard", response_model=DashboardStats)

@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Empleos - BotLinkedIn{% endblock %}
 
+{% block extra_css %}
+<link href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<style>
+    #jobsTable tr.filters th { padding: 4px; }
+    #jobsTable tr.filters input, #jobsTable tr.filters select { font-weight: normal; }
+    div.dt-container .dt-paging .dt-paging-button { padding: 2px 8px; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-briefcase"></i> Empleos Encontrados</h2>
@@ -12,16 +21,42 @@
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table id="jobsTable" class="table table-hover align-middle" style="width:100%">
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>Plataforma</th>
-                        <th>Titulo</th>
+                        <th>Título</th>
                         <th>Empresa</th>
-                        <th>Ubicacion</th>
+                        <th>Ubicación</th>
+                        <th>Fecha</th>
                         <th>Easy Apply</th>
-                        <th>Acciones</th>
+                        <th class="no-sort">Acciones</th>
+                    </tr>
+                    <tr class="filters">
+                        <th><input type="text" class="form-control form-control-sm" placeholder="ID"></th>
+                        <th>
+                            <select class="form-select form-select-sm">
+                                <option value="">Todas</option>
+                                <option value="linkedin">linkedin</option>
+                                <option value="indeed">indeed</option>
+                                <option value="glassdoor">glassdoor</option>
+                                <option value="computrabajo">computrabajo</option>
+                                <option value="elempleo">elempleo</option>
+                            </select>
+                        </th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar título"></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar empresa"></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar ubicación"></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="aaaa-mm-dd"></th>
+                        <th>
+                            <select class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                <option value="Si">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -29,7 +64,7 @@
                     <tr>
                         <td class="text-muted">{{ job.id }}</td>
                         <td>
-                            <span class="badge bg-{% if job.platform == 'linkedin' %}primary{% elif job.platform == 'indeed' %}info{% else %}secondary{% endif %}">
+                            <span class="badge bg-{% if job.platform == 'linkedin' %}primary{% elif job.platform == 'indeed' %}info{% elif job.platform == 'computrabajo' %}warning text-dark{% elif job.platform == 'elempleo' %}danger{% else %}secondary{% endif %}">
                                 {{ job.platform }}
                             </span>
                         </td>
@@ -38,15 +73,16 @@
                             <a href="{{ job.url }}" target="_blank" rel="noopener"
                                onclick="return openJobModal({{ job.id }}, this.href)"
                                class="fw-bold text-decoration-none" title="{{ job.title }} (ver oferta)">
-                                {{ job.title[:50] }}
+                                {{ job.title[:60] }}
                                 <i class="bi bi-eye small text-muted"></i>
                             </a>
                             {% else %}
-                            <strong>{{ job.title[:50] }}</strong>
+                            <strong>{{ job.title[:60] }}</strong>
                             {% endif %}
                         </td>
-                        <td>{{ job.company[:30] }}</td>
-                        <td>{{ (job.location or '')[:25] }}</td>
+                        <td>{{ job.company[:35] }}</td>
+                        <td>{{ (job.location or '')[:30] }}</td>
+                        <td>{{ (job.posted_date or job.scraped_at).strftime('%Y-%m-%d') if (job.posted_date or job.scraped_at) else '' }}</td>
                         <td>
                             {% if job.is_easy_apply %}
                             <span class="badge bg-success">Si</span>
@@ -54,23 +90,16 @@
                             <span class="badge bg-secondary">No</span>
                             {% endif %}
                         </td>
-                        <td>
-                            <a href="{{ job.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <td style="white-space:nowrap">
+                            <a href="{{ job.url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
-                            <button class="btn btn-sm btn-outline-success" onclick="generateCover({{ job.id }})">
+                            <button class="btn btn-sm btn-outline-success" onclick="generateCover({{ job.id }})" title="Generar carta">
                                 <i class="bi bi-envelope-paper"></i>
                             </button>
                         </td>
                     </tr>
                     {% endfor %}
-                    {% if not jobs %}
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
-                            No hay empleos guardados. Realiza una busqueda primero.
-                        </td>
-                    </tr>
-                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -154,6 +183,15 @@
                         <label class="form-check-label" for="platElempleo">elempleo <span class="badge bg-light text-dark">🇨🇴</span></label>
                     </div>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">Fecha de publicación</label>
+                    <select class="form-select" id="searchDate">
+                        <option value="0">Cualquier fecha</option>
+                        <option value="72">Últimos 3 días</option>
+                        <option value="168">Última semana</option>
+                        <option value="720">Último mes</option>
+                    </select>
+                </div>
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="searchRemote">
                     <label class="form-check-label" for="searchRemote">Solo remoto</label>
@@ -174,7 +212,33 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.min.js"></script>
 <script>
+// Initialise the jobs table: pagination, sorting and per-column filters.
+$(document).ready(function () {
+    if (!$('#jobsTable tbody tr').length) return;  // nothing to enhance
+    const table = new DataTable('#jobsTable', {
+        orderCellsTop: true,
+        pageLength: 15,
+        lengthMenu: [10, 15, 25, 50, 100],
+        order: [[5, 'desc']],  // newest by date first
+        columnDefs: [{ targets: 'no-sort', orderable: false, searchable: false }],
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.1.8/i18n/es-ES.json' }
+    });
+    // Wire each filter input/select in the .filters header row to its column.
+    table.columns().every(function (index) {
+        const column = this;
+        const cell = $('#jobsTable thead tr.filters th').eq(index);
+        const field = cell.find('input, select');
+        field.on('click', e => e.stopPropagation());
+        field.on('keyup change', function () {
+            if (column.search() !== this.value) column.search(this.value).draw();
+        });
+    });
+});
+
 let _suggestionsLoaded = false;
 
 // Show the job offer inside an in-page modal. LinkedIn blocks iframe embedding
@@ -303,7 +367,11 @@ async function executeSearch() {
         + ' &middot; ' + platforms.join(', ') + '...'
         + '</div>';
 
-    const body = {keywords, location, platforms, remote: document.getElementById('searchRemote').checked};
+    const body = {
+        keywords, location, platforms,
+        remote: document.getElementById('searchRemote').checked,
+        posted_within_hours: parseInt(document.getElementById('searchDate').value) || 0,
+    };
 
     try {
         const res = await fetch('/api/jobs/search', {
