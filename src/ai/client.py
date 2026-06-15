@@ -34,10 +34,10 @@ class ClaudeClient:
         return response.content[0].text, total_tokens
 
 
-_client: "ClaudeClient | AgentClient | None" = None
+_client = None
 
 
-def get_client() -> "ClaudeClient | AgentClient":
+def get_client():
     global _client
     if _client is None:
         if settings.ai_backend == "agent":
@@ -45,6 +45,10 @@ def get_client() -> "ClaudeClient | AgentClient":
             from src.ai.agent_client import AgentClient
 
             _client = AgentClient()
+        elif settings.ai_backend == "openrouter":
+            from src.ai.openrouter_client import OpenRouterClient
+
+            _client = OpenRouterClient()
         else:
             _client = ClaudeClient()
     return _client

@@ -1,7 +1,33 @@
-# Claude Agent SDK backend
+# AI backends
 
-By default BotLinkedIn talks to Claude through the **Anthropic Messages API**
-(`AI_BACKEND=api`). This is the simplest and recommended setup.
+BotLinkedIn supports three interchangeable AI backends, selected with the
+`AI_BACKEND` environment variable. All expose the same interface, so every AI
+feature (cover/reference letters, form answers, chat) works the same regardless
+of which one is active. Switching backends is purely additive — none of them
+removes or changes the others.
+
+| `AI_BACKEND` | Engine | Credential | Notes |
+|---|---|---|---|
+| `api` (default) | Anthropic Messages API | `ANTHROPIC_API_KEY` | Simplest |
+| `agent` | Claude Agent SDK (Claude Code) | `ANTHROPIC_API_KEY` | Needs `pip install -e ".[agent]"` + Claude Code CLI |
+| `openrouter` | OpenRouter (OpenAI-compatible) | `OPENROUTER_API_KEY` | Access to Gemini Flash, etc. |
+
+## OpenRouter backend (e.g. Gemini Flash)
+
+Use this to run the bot on a cheap, lightweight model via OpenRouter without an
+Anthropic account. In your `.env`:
+
+```env
+AI_BACKEND=openrouter
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_MODEL=google/gemini-2.5-flash-lite
+```
+
+`OPENROUTER_MODEL` accepts any OpenRouter model id (e.g.
+`google/gemini-2.5-flash`, `google/gemini-3.1-flash-lite`). Implemented in
+`src/ai/openrouter_client.py` using OpenRouter's `/chat/completions` endpoint.
+
+## Claude Agent SDK backend
 
 As an **optional** alternative, you can route AI generation through the
 **Claude Agent SDK** — the same engine that powers the Claude Code CLI — by
