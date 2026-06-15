@@ -36,10 +36,10 @@
                         <td>
                             {% if job.url %}
                             <a href="{{ job.url }}" target="_blank" rel="noopener"
-                               onclick="return openJobPopup(this.href)"
-                               class="fw-bold text-decoration-none" title="{{ job.title }} (abrir oferta en ventana)">
+                               onclick="return openJobModal({{ job.id }}, this.href)"
+                               class="fw-bold text-decoration-none" title="{{ job.title }} (ver oferta)">
                                 {{ job.title[:50] }}
-                                <i class="bi bi-window-stack small text-muted"></i>
+                                <i class="bi bi-eye small text-muted"></i>
                             </a>
                             {% else %}
                             <strong>{{ job.title[:50] }}</strong>
@@ -73,6 +73,31 @@
                     {% endif %}
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Job preview modal (in-page box showing the offer) -->
+<div class="modal fade" id="jobPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" id="jpTitle">Oferta</h5>
+                    <div class="text-muted small" id="jpMeta"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="jpBody"></div>
+            <div class="modal-footer">
+                <a href="#" id="jpOpen" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir en LinkedIn
+                </a>
+                <button type="button" class="btn btn-success" id="jpCover">
+                    <i class="bi bi-envelope-paper"></i> Generar carta
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>
@@ -144,14 +169,49 @@
 <script>
 let _suggestionsLoaded = false;
 
-// Open a job posting in a popup window so the user can review the offer
-// without leaving the dashboard. Falls back to a normal tab if the browser
-// blocks the popup.
-function openJobPopup(url) {
-    const features = 'popup=yes,noopener,width=1000,height=850,scrollbars=yes,resizable=yes';
-    const win = window.open(url, 'jobPreview', features);
-    if (win) { win.focus(); return false; }  // popup opened -> prevent default tab
-    return true;  // popup blocked -> let the normal link open
+// Show the job offer inside an in-page modal. LinkedIn blocks iframe embedding
+// (X-Frame-Options), so we load the scraped offer details from our own API
+// instead of the live page.
+let _jpModal = null;
+function openJobModal(jobId, url) {
+    document.getElementById('jpOpen').href = url;
+    document.getElementById('jpTitle').textContent = 'Oferta';
+    document.getElementById('jpMeta').textContent = '';
+    document.getElementById('jpBody').innerHTML =
+        '<div class="text-center text-muted py-5">'
+        + '<span class="spinner-border"></span><div class="mt-2">Cargando oferta desde LinkedIn...</div></div>';
+    document.getElementById('jpCover').onclick = () => generateCover(jobId);
+
+    if (!_jpModal) _jpModal = new bootstrap.Modal(document.getElementById('jobPreviewModal'));
+    _jpModal.show();
+
+    fetch('/api/jobs/' + jobId + '/preview')
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('jpTitle').textContent = d.title || 'Oferta';
+            document.getElementById('jpMeta').textContent =
+                [d.company, d.location].filter(Boolean).join(' · ');
+            const desc = (d.description || '').trim();
+            if (desc) {
+                const div = document.createElement('div');
+                div.style.whiteSpace = 'pre-wrap';
+                div.style.fontSize = '0.92rem';
+                div.style.lineHeight = '1.5';
+                div.textContent = desc;  // textContent = safe, no HTML injection
+                const body = document.getElementById('jpBody');
+                body.innerHTML = '';
+                body.appendChild(div);
+            } else {
+                document.getElementById('jpBody').innerHTML =
+                    '<div class="alert alert-warning mb-0">No se pudo cargar la descripción aquí. '
+                    + 'Usa el botón <strong>Abrir en LinkedIn</strong>.</div>';
+            }
+        })
+        .catch(e => {
+            document.getElementById('jpBody').innerHTML =
+                '<div class="alert alert-danger mb-0">Error cargando la oferta: ' + e.message + '</div>';
+        });
+    return false;  // prevent the default tab navigation
 }
 
 function searchJobs() {

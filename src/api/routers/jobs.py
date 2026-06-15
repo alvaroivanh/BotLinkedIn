@@ -84,6 +84,46 @@ def get_job(job_id: int):
     return job
 
 
+@router.get("/{job_id}/preview")
+def job_preview(job_id: int):
+    """Return the offer details for an in-page preview modal.
+
+    LinkedIn (and others) block iframe embedding, so instead of showing the live
+    page we return the scraped offer. The description is fetched on demand when
+    missing and cached back to the job row.
+    """
+    session = get_session()
+    job = JobRepo(session).get_by_id(job_id)
+    if not job:
+        session.close()
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    description = job.description or ""
+    if not description and job.url:
+        scraper = _get_scraper(job.platform)
+        if scraper:
+            try:
+                details = scraper.get_details(job.url)
+                if details and details.description:
+                    description = details.description
+                    job.description = description
+                    session.commit()
+            except Exception:  # noqa: BLE001 - preview is best-effort
+                pass
+
+    result = {
+        "id": job.id,
+        "title": job.title,
+        "company": job.company,
+        "location": job.location or "",
+        "url": job.url,
+        "platform": job.platform,
+        "description": description,
+    }
+    session.close()
+    return result
+
+
 @router.post("/search")
 def search_jobs(data: JobSearchRequest):
     criteria = SearchCriteria(
