@@ -154,7 +154,7 @@
                     <i class="bi bi-window-stack"></i> Abrir en navegador limpio
                 </button>
                 <button type="button" class="btn btn-outline-dark" onclick="addToPipeline()">
-                    <i class="bi bi-kanban"></i> Guardar en pipeline
+                    <i class="bi bi-kanban"></i> Guardar en seguimiento
                 </button>
                 <button type="button" class="btn btn-success" id="jpCover">
                     <i class="bi bi-envelope-paper"></i> Generar carta
@@ -406,7 +406,7 @@ async function addToPipeline() {
     try {
         const res = await fetch('/api/pipeline/add-job/' + _previewJobId, { method: 'POST' });
         const d = await res.json();
-        if (res.ok) showToast(d.existing ? 'Ya estaba en el pipeline (restaurado).' : '✅ Guardado en el pipeline.', 'success');
+        if (res.ok) showToast(d.existing ? 'Ya estaba en seguimiento (restaurado).' : '✅ Guardado en seguimiento.', 'success');
         else showToast(d.detail || 'No se pudo guardar.', 'danger');
     } catch (e) {
         showToast('Error: ' + e.message, 'danger');
