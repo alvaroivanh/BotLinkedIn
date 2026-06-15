@@ -32,7 +32,7 @@
                 <p class="card-text" style="white-space: pre-line; max-height: 200px; overflow-y: auto; font-size: 0.9rem;">{{ letter.content[:500] }}{% if letter.content|length > 500 %}...{% endif %}</p>
             </div>
             <div class="card-footer d-flex justify-content-between">
-                <small class="text-muted">{{ letter.model_used }} | {{ letter.tokens_used or 0 }} tokens</small>
+                <small class="text-muted"><i class="bi bi-robot"></i> IA · {{ letter.tokens_used or 0 }} tokens</small>
                 <div>
                     <button class="btn btn-sm btn-outline-primary" onclick="viewLetter({{ letter.id }})">
                         <i class="bi bi-eye"></i> Ver
@@ -67,9 +67,11 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">ID del Empleo</label>
-                    <input type="number" class="form-control" id="coverJobId" placeholder="Ej: 1">
-                    <small class="text-muted">Usa el ID de la seccion de Empleos</small>
+                    <label class="form-label">Empleo</label>
+                    <select class="form-select" id="coverJobId">
+                        <option value="">Cargando empleos...</option>
+                    </select>
+                    <small class="text-muted">Elige el empleo para el que generar la carta.</small>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Tono</label>
@@ -152,6 +154,31 @@
 <script>
 function showCoverModal() {
     new bootstrap.Modal(document.getElementById('coverModal')).show();
+    loadJobsForSelect();
+}
+
+let _jobsLoaded = false;
+async function loadJobsForSelect() {
+    if (_jobsLoaded) return;
+    const sel = document.getElementById('coverJobId');
+    try {
+        const res = await fetch('/api/jobs/?limit=200');
+        const jobs = await res.json();
+        sel.innerHTML = '';
+        if (Array.isArray(jobs) && jobs.length) {
+            jobs.forEach(j => {
+                const o = document.createElement('option');
+                o.value = j.id;
+                o.textContent = '#' + j.id + ' · ' + (j.title || '').slice(0, 45) + ' — ' + (j.company || '').slice(0, 25);
+                sel.appendChild(o);
+            });
+            _jobsLoaded = true;
+        } else {
+            sel.innerHTML = '<option value="">No hay empleos. Busca empleos primero.</option>';
+        }
+    } catch (e) {
+        sel.innerHTML = '<option value="">Error cargando empleos</option>';
+    }
 }
 function showRefModal() {
     new bootstrap.Modal(document.getElementById('refModal')).show();
@@ -176,10 +203,10 @@ async function generateCover() {
             bootstrap.Modal.getInstance(document.getElementById('coverModal')).hide();
             location.reload();
         } else {
-            alert('Error: ' + (data.detail || 'Error desconocido'));
+            showToast('Error: ' + (data.detail || 'Error desconocido'), 'danger');
         }
     } catch (e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'danger');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-magic"></i> Generar';
@@ -207,10 +234,10 @@ async function generateRef() {
             bootstrap.Modal.getInstance(document.getElementById('refModal')).hide();
             location.reload();
         } else {
-            alert('Error: ' + (data.detail || 'Error desconocido'));
+            showToast('Error: ' + (data.detail || 'Error desconocido'), 'danger');
         }
     } catch (e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'danger');
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-magic"></i> Generar';
@@ -225,13 +252,13 @@ async function viewLetter(letterId) {
         window._currentLetterContent = data.content;
         new bootstrap.Modal(document.getElementById('viewModal')).show();
     } catch (e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'danger');
     }
 }
 
 function copyLetter() {
     navigator.clipboard.writeText(window._currentLetterContent || '');
-    alert('Carta copiada al portapapeles');
+    showToast('Carta copiada al portapapeles', 'success');
 }
 </script>
 {% endblock %}

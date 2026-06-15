@@ -65,7 +65,7 @@
                     <tr data-job-id="{{ job.id }}"{% if is_applied %} class="table-success"{% endif %}>
                         <td class="text-muted">{{ job.id }}</td>
                         <td>
-                            <span class="badge bg-{% if job.platform == 'linkedin' %}primary{% elif job.platform == 'indeed' %}info{% elif job.platform == 'computrabajo' %}warning text-dark{% elif job.platform == 'elempleo' %}danger{% else %}secondary{% endif %}">
+                            <span class="badge" style="color:#fff;background:{{ {'linkedin':'#0a66c2','indeed':'#2557a7','glassdoor':'#0caa41','computrabajo':'#1f8a70','elempleo':'#6f42c1'}.get(job.platform, '#6c757d') }}">
                                 {{ job.platform }}
                             </span>
                         </td>
@@ -85,10 +85,14 @@
                         <td>{{ (job.location or '')[:30] }}</td>
                         <td>{{ (job.posted_date or job.scraped_at).strftime('%Y-%m-%d') if (job.posted_date or job.scraped_at) else '' }}</td>
                         <td>
-                            {% if job.is_easy_apply %}
-                            <span class="badge bg-success">Si</span>
+                            {% if job.platform in ['linkedin', 'indeed'] %}
+                                {% if job.is_easy_apply %}
+                                <span class="badge bg-success">Si</span>
+                                {% else %}
+                                <span class="badge bg-secondary">No</span>
+                                {% endif %}
                             {% else %}
-                            <span class="badge bg-secondary">No</span>
+                                <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td style="white-space:nowrap">
@@ -516,12 +520,12 @@ async function generateCover(jobId) {
         });
         const data = await res.json();
         if (data.id) {
-            alert('Carta generada exitosamente. Ve a la seccion de Cartas para verla.');
+            showToast('✅ Carta generada. Revísala en la sección Cartas.', 'success');
         } else {
-            alert('Error: ' + (data.detail || 'Error desconocido'));
+            showToast('Error: ' + (data.detail || 'Error desconocido'), 'danger');
         }
     } catch (e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'danger');
     }
 }
 </script>
