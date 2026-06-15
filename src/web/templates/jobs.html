@@ -95,7 +95,7 @@
                             {% if is_applied %}
                             <span class="badge bg-success" title="Ya te postulaste"><i class="bi bi-check-lg"></i> Aplicado</span>
                             {% endif %}
-                            <a href="{{ job.url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir">
+                            <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-sm btn-outline-primary" title="Abrir">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
                             <button class="btn btn-sm btn-outline-success" onclick="generateCover({{ job.id }})" title="Generar carta">
@@ -123,7 +123,7 @@
             </div>
             <div class="modal-body" id="jpBody"></div>
             <div class="modal-footer">
-                <a href="#" id="jpOpen" target="_blank" rel="noopener" class="btn btn-primary">
+                <a href="#" id="jpOpen" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-primary">
                     <i class="bi bi-box-arrow-up-right"></i> Abrir oferta
                 </a>
                 <button type="button" class="btn btn-success" id="jpCover">
