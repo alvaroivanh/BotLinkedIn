@@ -32,8 +32,11 @@ def applications_page(request: Request):
 def jobs_page(request: Request):
     session = get_session()
     jobs = JobRepo(session).list_all(limit=1000)
+    applied_ids = {a.job_id for a in ApplicationRepo(session).list_all(status="applied")}
     session.close()
-    return templates.TemplateResponse(request, "jobs.html", {"jobs": jobs})
+    return templates.TemplateResponse(
+        request, "jobs.html", {"jobs": jobs, "applied_ids": applied_ids}
+    )
 
 
 @router.get("/letters", response_class=HTMLResponse)

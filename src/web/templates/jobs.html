@@ -61,7 +61,8 @@
                 </thead>
                 <tbody>
                     {% for job in jobs %}
-                    <tr>
+                    {% set is_applied = applied_ids and job.id in applied_ids %}
+                    <tr data-job-id="{{ job.id }}"{% if is_applied %} class="table-success"{% endif %}>
                         <td class="text-muted">{{ job.id }}</td>
                         <td>
                             <span class="badge bg-{% if job.platform == 'linkedin' %}primary{% elif job.platform == 'indeed' %}info{% elif job.platform == 'computrabajo' %}warning text-dark{% elif job.platform == 'elempleo' %}danger{% else %}secondary{% endif %}">
@@ -91,6 +92,9 @@
                             {% endif %}
                         </td>
                         <td style="white-space:nowrap">
+                            {% if is_applied %}
+                            <span class="badge bg-success" title="Ya te postulaste"><i class="bi bi-check-lg"></i> Aplicado</span>
+                            {% endif %}
                             <a href="{{ job.url }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Abrir">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
@@ -336,6 +340,22 @@ function showAppliedModal() {
     _appliedModal.show();
 }
 
+// Highlight the row + add an "Aplicado" badge without reloading (if the row
+// is on the current DataTables page). The server renders it on the next load.
+function markRowApplied(jobId) {
+    const row = document.querySelector('#jobsTable tbody tr[data-job-id="' + jobId + '"]');
+    if (!row || row.classList.contains('table-success')) return;
+    row.classList.add('table-success');
+    const actions = row.querySelector('td:last-child');
+    if (actions && !actions.querySelector('.badge.bg-success')) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-success me-1';
+        badge.title = 'Ya te postulaste';
+        badge.innerHTML = '<i class="bi bi-check-lg"></i> Aplicado';
+        actions.insertBefore(badge, actions.firstChild);
+    }
+}
+
 async function confirmApplied() {
     const btn = document.getElementById('appliedYes');
     btn.disabled = true;
@@ -345,6 +365,7 @@ async function confirmApplied() {
         if (res.ok) {
             document.getElementById('appliedBody').innerHTML =
                 '<span class="text-success">✅ Registrado. Aparecerá en el dashboard.</span>';
+            markRowApplied(_previewJobId);
             setTimeout(() => { if (_appliedModal) _appliedModal.hide(); }, 1000);
         } else {
             document.getElementById('appliedBody').innerHTML =
