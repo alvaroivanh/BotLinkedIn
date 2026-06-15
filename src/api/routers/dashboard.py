@@ -21,9 +21,9 @@ def dashboard_page(request: Request):
 
 
 @router.get("/applications", response_class=HTMLResponse)
-def applications_page(request: Request):
+def applications_page(request: Request, status: str = ""):
     session = get_session()
-    apps = ApplicationRepo(session).list_all()
+    apps = ApplicationRepo(session).list_all(status=status or None)
     session.close()
     return templates.TemplateResponse(request, "applications.html", {"applications": apps})
 
