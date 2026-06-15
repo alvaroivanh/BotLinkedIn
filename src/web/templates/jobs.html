@@ -29,6 +29,7 @@
                         <th>Título</th>
                         <th>Empresa</th>
                         <th>Ubicación</th>
+                        <th>Modalidad</th>
                         <th>Fecha</th>
                         <th>Easy Apply</th>
                         <th class="no-sort">Acciones</th>
@@ -48,6 +49,14 @@
                         <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar título"></th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar empresa"></th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar ubicación"></th>
+                        <th>
+                            <select class="form-select form-select-sm">
+                                <option value="">Todas</option>
+                                <option value="Remoto">Remoto</option>
+                                <option value="Presencial">Presencial</option>
+                                <option value="Híbrido">Híbrido</option>
+                            </select>
+                        </th>
                         <th><input type="text" class="form-control form-control-sm" placeholder="aaaa-mm-dd"></th>
                         <th>
                             <select class="form-select form-select-sm">
@@ -83,6 +92,16 @@
                         </td>
                         <td>{{ job.company[:35] }}</td>
                         <td>{{ (job.location or '')[:30] }}</td>
+                        <td>
+                            {% set _m = ((job.title or '') ~ ' ' ~ (job.location or ''))|lower %}
+                            {% if 'híbrid' in _m or 'hibrid' in _m or 'hybrid' in _m or 'mixto' in _m %}
+                            <span class="badge bg-info text-dark">Híbrido</span>
+                            {% elif job.is_remote or 'remoto' in _m or 'remote' in _m or 'teletrabajo' in _m %}
+                            <span class="badge bg-success">Remoto</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark border">Presencial</span>
+                            {% endif %}
+                        </td>
                         <td>{{ (job.posted_date or job.scraped_at).strftime('%Y-%m-%d') if (job.posted_date or job.scraped_at) else '' }}</td>
                         <td>
                             {% if job.platform in ['linkedin', 'indeed'] %}
@@ -255,7 +274,7 @@ $(document).ready(function () {
         orderCellsTop: true,
         pageLength: 15,
         lengthMenu: [10, 15, 25, 50, 100],
-        order: [[5, 'desc']],  // newest by date first
+        order: [[6, 'desc']],  // newest by date first (Fecha column)
         columnDefs: [{ targets: 'no-sort', orderable: false, searchable: false }],
         language: { url: 'https://cdn.datatables.net/plug-ins/2.1.8/i18n/es-ES.json' }
     });
