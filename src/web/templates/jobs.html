@@ -226,6 +226,11 @@ async function loadSuggestions() {
     const box = document.getElementById('suggestionsBox');
     try {
         const res = await fetch('/api/jobs/suggestions');
+        if (!res.ok) {
+            box.innerHTML = '<span class="text-warning small">No se pudieron cargar las sugerencias (HTTP '
+                + res.status + '). Reinicia el dashboard para aplicar la última versión.</span>';
+            return;
+        }
         const data = await res.json();
 
         if (data.reason === 'no_resume') {

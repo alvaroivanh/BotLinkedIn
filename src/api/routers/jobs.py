@@ -62,6 +62,9 @@ def job_suggestions():
         "(un cargo o palabra clave) adecuado al perfil.\n"
         "Solo JSON."
     )
+    location = ""
+    queries: list[str] = []
+    error = ""
     try:
         raw = get_client().generate(system=system, user=user, max_tokens=400)
         try:
@@ -69,9 +72,38 @@ def job_suggestions():
         except json.JSONDecodeError:
             data = json.loads(re.search(r"\{[\s\S]*\}", raw).group(0))
         queries = [str(q) for q in (data.get("queries") or []) if str(q).strip()][:8]
-        return {"location": str(data.get("location") or ""), "queries": queries}
-    except Exception as exc:  # noqa: BLE001 - suggestions are best-effort
-        return {"location": "", "queries": [], "error": str(exc)}
+        location = str(data.get("location") or "")
+    except Exception as exc:  # noqa: BLE001 - fall back to non-AI suggestions
+        error = str(exc)
+
+    # Fallback: derive suggestions straight from the resume so the panel is never
+    # empty when the AI call fails or returns nothing.
+    if not queries:
+        queries = _fallback_queries(resume)
+
+    return {"location": location, "queries": queries, "error": error}
+
+
+def _fallback_queries(resume: dict) -> list[str]:
+    """Build search suggestions directly from resume titles and skills."""
+    candidates: list[str] = []
+    for exp in (resume.get("experiences") or [])[:4]:
+        title = str(exp.get("title") or "").strip()
+        if title:
+            candidates.append(title)
+    for skill in (resume.get("skills") or [])[:6]:
+        name = str(skill.get("name") or "").strip()
+        if name:
+            candidates.append(name)
+
+    seen: set[str] = set()
+    out: list[str] = []
+    for q in candidates:
+        key = q.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(q)
+    return out[:8]
 
 
 @router.get("/{job_id}", response_model=JobResponse)
