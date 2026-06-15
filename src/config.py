@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     linkedin_email: str = ""
     linkedin_password: str = ""
 
+    # Job search
+    # Country hint for Indeed/Glassdoor scraping via python-jobspy.
+    search_country: str = "colombia"
+
     # Application limits
     max_daily_applications: int = 50
     delay_min: int = 5

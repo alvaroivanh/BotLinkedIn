@@ -32,47 +32,10 @@ class LinkedInScraper(BaseScraper):
         self.delay = 3  # seconds between requests
 
     def search(self, criteria: SearchCriteria, max_pages: int = 3) -> SearchResult:
-        jobs: list[JobPosting] = []
-        page_size = 25
+        # Delegate to python-jobspy: the direct guest-API requests get blocked.
+        from src.scraper.jobspy_backend import scrape_with_jobspy
 
-        for page in range(max_pages):
-            start = page * page_size
-            params = {
-                "keywords": criteria.keywords,
-                "location": criteria.location,
-                "start": start,
-                "f_TPR": self._time_filter(criteria.posted_within_hours),
-            }
-            if criteria.remote:
-                params["f_WT"] = "2"  # Remote filter
-            if criteria.job_type:
-                params["f_JT"] = self._job_type_code(criteria.job_type)
-
-            try:
-                response = self.client.get(LINKEDIN_JOBS_API, params=params)
-                if response.status_code != 200:
-                    logger.warning(f"LinkedIn API returned {response.status_code}")
-                    break
-
-                page_jobs = self._parse_job_cards(response.text)
-                if not page_jobs:
-                    break
-
-                jobs.extend(page_jobs)
-                logger.info(f"LinkedIn page {page + 1}: found {len(page_jobs)} jobs")
-
-                if page < max_pages - 1:
-                    time.sleep(self.delay)
-
-            except Exception as e:
-                logger.error(f"LinkedIn scraping error: {e}")
-                break
-
-        return SearchResult(
-            jobs=jobs,
-            total_found=len(jobs),
-            search_criteria=criteria,
-        )
+        return scrape_with_jobspy("linkedin", criteria, max_pages)
 
     def get_details(self, job_url: str) -> JobPosting | None:
         try:

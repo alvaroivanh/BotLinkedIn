@@ -32,45 +32,10 @@ class IndeedScraper(BaseScraper):
         self.delay = 2
 
     def search(self, criteria: SearchCriteria, max_pages: int = 3) -> SearchResult:
-        jobs: list[JobPosting] = []
+        # Delegate to python-jobspy: direct Indeed requests get blocked (403).
+        from src.scraper.jobspy_backend import scrape_with_jobspy
 
-        for page in range(max_pages):
-            params = {
-                "q": criteria.keywords,
-                "l": criteria.location,
-                "start": page * 10,
-                "fromage": self._days_filter(criteria.posted_within_hours),
-            }
-            if criteria.remote:
-                params["remotejob"] = "032b3046-06a3-4876-8dfd-474eb5e7ed11"
-            if criteria.job_type:
-                params["jt"] = self._job_type_code(criteria.job_type)
-
-            try:
-                response = self.client.get(INDEED_BASE, params=params)
-                if response.status_code != 200:
-                    logger.warning(f"Indeed returned {response.status_code}")
-                    break
-
-                page_jobs = self._parse_results(response.text)
-                if not page_jobs:
-                    break
-
-                jobs.extend(page_jobs)
-                logger.info(f"Indeed page {page + 1}: found {len(page_jobs)} jobs")
-
-                if page < max_pages - 1:
-                    time.sleep(self.delay)
-
-            except Exception as e:
-                logger.error(f"Indeed scraping error: {e}")
-                break
-
-        return SearchResult(
-            jobs=jobs,
-            total_found=len(jobs),
-            search_criteria=criteria,
-        )
+        return scrape_with_jobspy("indeed", criteria, max_pages)
 
     def get_details(self, job_url: str) -> JobPosting | None:
         try:
