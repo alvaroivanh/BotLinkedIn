@@ -131,6 +131,9 @@
                 <a href="#" id="jpOpen" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-primary">
                     <i class="bi bi-box-arrow-up-right"></i> Abrir oferta
                 </a>
+                <button type="button" class="btn btn-dark" id="jpCleanOpen" style="display:none" onclick="openClean()">
+                    <i class="bi bi-window-stack"></i> Abrir en navegador limpio
+                </button>
                 <button type="button" class="btn btn-success" id="jpCover">
                     <i class="bi bi-envelope-paper"></i> Generar carta
                 </button>
@@ -282,6 +285,7 @@ function openJobModal(jobId, url) {
     document.getElementById('jpTitle').textContent = 'Oferta';
     document.getElementById('jpMeta').textContent = '';
     document.getElementById('jpHint').innerHTML = '';
+    document.getElementById('jpCleanOpen').style.display = 'none';
     document.getElementById('jpBody').innerHTML =
         '<div class="text-center text-muted py-5">'
         + '<span class="spinner-border"></span><div class="mt-2">Cargando oferta...</div></div>';
@@ -306,12 +310,12 @@ function openJobModal(jobId, url) {
             const portals = { computrabajo: 'https://co.computrabajo.com/', elempleo: 'https://www.elempleo.com/co/' };
             const hint = document.getElementById('jpHint');
             if (portals[d.platform]) {
+                document.getElementById('jpCleanOpen').style.display = 'inline-block';
                 hint.innerHTML =
-                    '<div class="alert alert-warning py-2 mb-0">⚠️ Este portal puede bloquear el acceso directo (403). '
-                    + 'La <strong>descripción completa ya está arriba</strong>. Para postularte, '
-                    + '<a href="' + portals[d.platform] + '" target="_blank" rel="noreferrer">abre primero el portal</a>, '
-                    + 'pasa su verificación y luego usa “Abrir oferta”.</div>';
+                    '<div class="alert alert-warning py-2 mb-0">⚠️ Si este portal te bloquea (403) con “Abrir oferta”, '
+                    + 'usa <strong>“Abrir en navegador limpio”</strong>: abre la oferta en una ventana nueva sin el bloqueo.</div>';
             } else {
+                document.getElementById('jpCleanOpen').style.display = 'none';
                 hint.innerHTML = '';
             }
             const desc = (d.description || '').trim();
@@ -372,6 +376,21 @@ function markRowApplied(jobId) {
         badge.title = 'Ya te postulaste';
         badge.innerHTML = '<i class="bi bi-check-lg"></i> Aplicado';
         actions.insertBefore(badge, actions.firstChild);
+    }
+}
+
+// Open the offer in a fresh Chromium window (Playwright) to bypass portal 403s.
+async function openClean() {
+    try {
+        const res = await fetch('/api/jobs/' + _previewJobId + '/open-browser', { method: 'POST' });
+        if (res.ok) {
+            showToast('Abriendo la oferta en un navegador limpio… (puede tardar unos segundos)', 'info');
+            setTimeout(askApplied, 2000);
+        } else {
+            showToast('No se pudo abrir el navegador.', 'danger');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
     }
 }
 

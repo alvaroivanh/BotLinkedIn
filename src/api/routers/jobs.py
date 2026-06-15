@@ -1,10 +1,14 @@
 import json
+import os
 import re
+import subprocess
+import sys
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import JobResponse, JobSearchRequest
+from src.config import BASE_DIR
 from src.db.database import get_session
 from src.db.models import Application
 from src.db.repository import JobRepo, ResumeRepo, SearchHistoryRepo
@@ -200,6 +204,33 @@ def mark_applied(job_id: int):
         return {"ok": True, "application_id": app_id, "status": "applied"}
     finally:
         session.close()
+
+
+@router.post("/{job_id}/open-browser")
+def open_in_clean_browser(job_id: int):
+    """Open the offer in a fresh, headed Chromium window (clean session).
+
+    For portals (e.g. Computrabajo) whose anti-bot blocks the user's main
+    browser; a clean profile loads fine. Launches a detached process so the
+    browser window survives this request.
+    """
+    session = get_session()
+    job = JobRepo(session).get_by_id(job_id)
+    session.close()
+    if not job or not job.url:
+        raise HTTPException(status_code=404, detail="Empleo no encontrado")
+
+    kwargs = {"cwd": str(BASE_DIR)}
+    if os.name == "nt":
+        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP -> independent of the server.
+        kwargs["creationflags"] = 0x00000008 | 0x00000200
+    else:
+        kwargs["start_new_session"] = True
+
+    subprocess.Popen(
+        [sys.executable, "-m", "src.automation.open_offer", job.url], **kwargs
+    )
+    return {"ok": True}
 
 
 @router.post("/search")
