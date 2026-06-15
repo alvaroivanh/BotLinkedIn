@@ -1,45 +1,59 @@
-"""Open a job-offer URL in a fresh, headed Chromium window via Playwright.
+"""Open a job-offer URL in the system browser's private/incognito window.
 
-Some portals (e.g. Computrabajo) block the user's main browser session with an
-anti-bot 403, while a clean browser profile loads fine. This launches a
-Playwright-controlled Chromium with a fresh context (no cookies, no extensions)
-pointed at the offer, so the user can review and apply there.
-
-Run as a standalone, detached process:
-    python -m src.automation.open_offer <url>
-
-The window stays open until the user closes it.
+Some portals (e.g. Computrabajo) block the user's normal browser session with an
+anti-bot 403. A private/incognito window has no cookies or extensions, so it's a
+clean session that loads fine. We launch the user's installed browser (Chrome,
+Edge or Brave) directly in private mode — more reliable than a bundled headless
+browser and matches the "incognito" behaviour the user expects.
 """
 
+import os
+import shutil
+import subprocess
 import sys
-import time
+
+# (private-mode flag, candidate executable paths) in preference order.
+_CANDIDATES = [
+    ("--incognito", [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+    ]),
+    ("--inprivate", [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ]),
+    ("--incognito", [
+        os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+    ]),
+]
 
 
-def open_offer(url: str) -> None:
-    from playwright.sync_api import sync_playwright
+def find_browser():
+    """Return (exe_path, private_flag) for the first available browser, or (None, None)."""
+    for flag, paths in _CANDIDATES:
+        for path in paths:
+            if path and os.path.isfile(path):
+                return path, flag
+    # Fall back to anything on PATH.
+    for name, flag in (("chrome", "--incognito"), ("msedge", "--inprivate"), ("brave", "--incognito")):
+        exe = shutil.which(name)
+        if exe:
+            return exe, flag
+    return None, None
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context(
-            viewport=None,  # use the real window size
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            ),
-        )
-        page = context.new_page()
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        except Exception:
-            pass  # leave the window open even if navigation is slow/partial
-        # Keep the process alive until the user closes the browser window.
-        try:
-            while browser.is_connected():
-                time.sleep(1)
-        except Exception:
-            pass
+
+def open_incognito(url: str) -> bool:
+    """Open `url` in a private/incognito window. Returns False if no browser found."""
+    exe, flag = find_browser()
+    if not exe:
+        return False
+    subprocess.Popen([exe, flag, url], close_fds=True)
+    return True
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        open_offer(sys.argv[1])
+        ok = open_incognito(sys.argv[1])
+        sys.exit(0 if ok else 1)
