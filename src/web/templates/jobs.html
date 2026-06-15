@@ -33,7 +33,17 @@
                                 {{ job.platform }}
                             </span>
                         </td>
-                        <td><strong>{{ job.title[:50] }}</strong></td>
+                        <td>
+                            {% if job.url %}
+                            <a href="{{ job.url }}" target="_blank" rel="noopener"
+                               class="fw-bold text-decoration-none" title="{{ job.title }} (abrir oferta)">
+                                {{ job.title[:50] }}
+                                <i class="bi bi-box-arrow-up-right small text-muted"></i>
+                            </a>
+                            {% else %}
+                            <strong>{{ job.title[:50] }}</strong>
+                            {% endif %}
+                        </td>
                         <td>{{ job.company[:30] }}</td>
                         <td>{{ (job.location or '')[:25] }}</td>
                         <td>
