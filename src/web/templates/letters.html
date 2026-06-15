@@ -26,7 +26,7 @@
                     </span>
                     <small class="text-muted ms-2">{{ letter.tone }}</small>
                 </span>
-                <small class="text-muted">{{ str(letter.created_at)[:16] }}</small>
+                <small class="text-muted">{{ (letter.created_at|string)[:16] }}</small>
             </div>
             <div class="card-body">
                 <p class="card-text" style="white-space: pre-line; max-height: 200px; overflow-y: auto; font-size: 0.9rem;">{{ letter.content[:500] }}{% if letter.content|length > 500 %}...{% endif %}</p>
