@@ -33,6 +33,19 @@
 
 <div class="card">
     <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleSelectAll(this)">
+                <label class="form-check-label small" for="selectAll">Seleccionar todo</label>
+            </div>
+            <button class="btn btn-sm btn-outline-warning" id="bulkSaveBtn" onclick="bulkSave()" disabled>
+                <i class="bi bi-floppy"></i> Guardar
+            </button>
+            <button class="btn btn-sm btn-outline-danger" id="bulkDelBtn" onclick="bulkDelete()" disabled>
+                <i class="bi bi-trash"></i> Eliminar
+            </button>
+            <span class="small text-muted" id="selInfo"></span>
+        </div>
         <div class="table-responsive">
             <table id="jobsTable" class="table table-hover align-middle" style="width:100%">
                 <thead>
@@ -138,6 +151,7 @@
                             {% endif %}
                         </td>
                         <td style="white-space:nowrap">
+                            <input type="checkbox" class="form-check-input rowcheck me-1" value="{{ job.id }}" onclick="updateSel()" title="Seleccionar" style="vertical-align:middle">
                             {% if is_applied %}
                             <span class="badge bg-success" title="Ya te postulaste"><i class="bi bi-check-lg"></i> Aplicado</span>
                             {% endif %}
@@ -336,6 +350,12 @@ $(document).ready(function () {
             if (column.search() !== this.value) column.search(this.value).draw();
         });
     });
+    // Reset bulk selection when the table redraws (paging, filter, sort).
+    table.on('draw', function () {
+        const sa = document.getElementById('selectAll');
+        if (sa) { sa.checked = false; sa.indeterminate = false; }
+        updateSel();
+    });
 });
 
 let _suggestionsLoaded = false;
@@ -489,6 +509,47 @@ async function toggleSavePopup() {
         showToast('Error: ' + e.message, 'danger');
     }
 }
+
+// ── Bulk selection ────────────────────────────────────────────
+function rowChecks() { return Array.from(document.querySelectorAll('#jobsTable .rowcheck')); }
+function selectedIds() { return rowChecks().filter(c => c.checked).map(c => parseInt(c.value)); }
+
+function updateSel() {
+    const all = rowChecks();
+    const sel = all.filter(c => c.checked);
+    const n = sel.length;
+    document.getElementById('bulkSaveBtn').disabled = n === 0;
+    document.getElementById('bulkDelBtn').disabled = n === 0;
+    document.getElementById('selInfo').textContent = n ? (n + ' seleccionado(s)') : '';
+    const sa = document.getElementById('selectAll');
+    sa.checked = all.length > 0 && n === all.length;
+    sa.indeterminate = n > 0 && n < all.length;
+}
+
+function toggleSelectAll(cb) { rowChecks().forEach(c => { c.checked = cb.checked; }); updateSel(); }
+
+async function bulkAction(action) {
+    const ids = selectedIds();
+    if (!ids.length) return;
+    if (action === 'delete' && !confirm('¿Eliminar ' + ids.length + ' empleo(s) de la lista? No se puede deshacer.')) return;
+    try {
+        const res = await fetch('/api/jobs/bulk', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ids }),
+        });
+        const d = await res.json();
+        if (res.ok) {
+            showToast((action === 'save' ? 'Guardados: ' : 'Eliminados: ') + d.count, 'success');
+            setTimeout(() => location.reload(), 700);
+        } else {
+            showToast(d.detail || 'No se pudo completar.', 'danger');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+function bulkSave() { bulkAction('save'); }
+function bulkDelete() { bulkAction('delete'); }
 
 // Add this job to the pipeline board at the "Guardado" stage.
 async function addToPipeline() {

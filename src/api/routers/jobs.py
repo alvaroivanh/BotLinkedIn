@@ -2,7 +2,7 @@ import json
 import re
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 
 from src.api.schemas import JobResponse, JobSearchRequest
 from src.db.database import get_session
@@ -164,6 +164,45 @@ def job_preview(job_id: int):
     }
     session.close()
     return result
+
+
+@router.post("/bulk")
+def bulk_action(payload: dict = Body(...)):
+    """Bulk save or delete jobs by id. action: 'save' | 'delete'."""
+    action = payload.get("action")
+    ids = [int(i) for i in (payload.get("ids") or [])]
+    if not ids:
+        return {"ok": True, "count": 0}
+    session = get_session()
+    try:
+        if action == "save":
+            session.query(Job).filter(Job.id.in_(ids)).update(
+                {Job.saved: True}, synchronize_session=False
+            )
+        elif action == "delete":
+            from src.db.models import ApplicationNote, Letter, Reminder
+
+            apps = session.query(Application).filter(Application.job_id.in_(ids)).all()
+            for a in apps:
+                session.query(ApplicationNote).filter_by(application_id=a.id).delete(
+                    synchronize_session=False
+                )
+                session.query(Reminder).filter_by(application_id=a.id).delete(
+                    synchronize_session=False
+                )
+                session.query(Letter).filter_by(application_id=a.id).update(
+                    {Letter.application_id: None}, synchronize_session=False
+                )
+            session.query(Application).filter(Application.job_id.in_(ids)).delete(
+                synchronize_session=False
+            )
+            session.query(Job).filter(Job.id.in_(ids)).delete(synchronize_session=False)
+        else:
+            raise HTTPException(status_code=400, detail="Acción inválida")
+        session.commit()
+        return {"ok": True, "count": len(ids)}
+    finally:
+        session.close()
 
 
 @router.post("/{job_id}/save")
