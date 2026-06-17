@@ -11,6 +11,7 @@ class JobSearchRequest(BaseModel):
     platforms: list[str] = ["linkedin", "indeed"]
     remote: bool = False
     pages: int = 2
+    posted_within_hours: int = 0  # 0 = any date; 72 = 3 days; 168 = week; 720 = month
 
 
 class CoverLetterRequest(BaseModel):

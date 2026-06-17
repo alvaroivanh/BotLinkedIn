@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 import typer
@@ -7,6 +8,14 @@ from rich.console import Console
 from rich.table import Table
 
 from src.config import settings
+
+# Force UTF-8 console output. Windows consoles default to cp1252, which makes
+# rich crash when printing accents or box-drawing characters (e.g. in letters).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 
 app = typer.Typer(name="botlinkedin", help="AI-powered job application automation agent")
 console = Console()
@@ -428,6 +437,9 @@ def _get_scraper(platform: str):
     elif platform == "glassdoor":
         from src.scraper.glassdoor import GlassdoorScraper
         return GlassdoorScraper()
+    elif platform == "computrabajo":
+        from src.scraper.colombian import ComputrabajoScraper
+        return ComputrabajoScraper()
     else:
         console.print(f"[yellow]Unknown platform: {platform}[/yellow]")
         return None

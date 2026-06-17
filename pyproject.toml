@@ -38,6 +38,11 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.8",
 ]
+# Optional backend: route AI generation through the Claude Agent SDK
+# (set AI_BACKEND=agent). Requires the Claude Code CLI on PATH.
+agent = [
+    "claude-agent-sdk>=0.2",
+]
 
 [project.scripts]
 botlinkedin = "src.main:app"

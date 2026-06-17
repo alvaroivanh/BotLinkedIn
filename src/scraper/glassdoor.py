@@ -32,43 +32,10 @@ class GlassdoorScraper(BaseScraper):
         self.delay = 3
 
     def search(self, criteria: SearchCriteria, max_pages: int = 2) -> SearchResult:
-        jobs: list[JobPosting] = []
+        # Delegate to python-jobspy: direct Glassdoor requests get blocked.
+        from src.scraper.jobspy_backend import scrape_with_jobspy
 
-        for page in range(max_pages):
-            params = {
-                "sc.keyword": criteria.keywords,
-                "locT": "C",
-                "locKeyword": criteria.location,
-                "p": page + 1,
-            }
-            if criteria.remote:
-                params["remoteWorkType"] = "1"
-
-            try:
-                response = self.client.get(GLASSDOOR_BASE, params=params)
-                if response.status_code != 200:
-                    logger.warning(f"Glassdoor returned {response.status_code}")
-                    break
-
-                page_jobs = self._parse_results(response.text)
-                if not page_jobs:
-                    break
-
-                jobs.extend(page_jobs)
-                logger.info(f"Glassdoor page {page + 1}: found {len(page_jobs)} jobs")
-
-                if page < max_pages - 1:
-                    time.sleep(self.delay)
-
-            except Exception as e:
-                logger.error(f"Glassdoor scraping error: {e}")
-                break
-
-        return SearchResult(
-            jobs=jobs,
-            total_found=len(jobs),
-            search_criteria=criteria,
-        )
+        return scrape_with_jobspy("glassdoor", criteria, max_pages)
 
     def get_details(self, job_url: str) -> JobPosting | None:
         try:

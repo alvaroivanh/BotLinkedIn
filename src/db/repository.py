@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.db.database import get_session
 from src.db.models import Application, FormAnswer, Job, Letter, Resume, SearchHistory
@@ -108,7 +108,11 @@ class ApplicationRepo:
         return self.session.query(Application).get(app_id)
 
     def list_all(self, status: str | None = None) -> list[Application]:
-        query = self.session.query(Application)
+        # Eager-load related job/resume so templates can read them after the
+        # session is closed (otherwise a lazy load raises DetachedInstanceError).
+        query = self.session.query(Application).options(
+            joinedload(Application.job), joinedload(Application.resume)
+        )
         if status:
             query = query.filter_by(status=status)
         return query.order_by(Application.created_at.desc()).all()

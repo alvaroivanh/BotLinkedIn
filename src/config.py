@@ -17,10 +17,21 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-20250514"
+    # AI backend: "api" (direct Messages API, default), "agent" (Claude Agent SDK),
+    # or "openrouter" (OpenAI-compatible OpenRouter, e.g. Gemini Flash).
+    ai_backend: str = "api"
+
+    # OpenRouter (used when ai_backend == "openrouter")
+    openrouter_api_key: str = ""
+    openrouter_model: str = "google/gemini-2.5-flash-lite"
 
     # LinkedIn
     linkedin_email: str = ""
     linkedin_password: str = ""
+
+    # Job search
+    # Country hint for Indeed/Glassdoor scraping via python-jobspy.
+    search_country: str = "colombia"
 
     # Application limits
     max_daily_applications: int = 50

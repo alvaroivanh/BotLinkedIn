@@ -6,12 +6,13 @@
 
 <div class="card">
     <div class="card-header">
-        <div class="d-flex gap-2">
-            <a href="/applications" class="btn btn-sm btn-outline-secondary">Todas</a>
-            <a href="/applications?status=pending" class="btn btn-sm btn-outline-warning">Pendientes</a>
-            <a href="/applications?status=applied" class="btn btn-sm btn-outline-success">Enviadas</a>
-            <a href="/applications?status=interview" class="btn btn-sm btn-outline-info">Entrevistas</a>
-            <a href="/applications?status=rejected" class="btn btn-sm btn-outline-danger">Rechazadas</a>
+        {% set cur = request.query_params.get('status', '') %}
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/applications" class="btn btn-sm btn-outline-secondary {% if not cur %}active{% endif %}">Todas</a>
+            <a href="/applications?status=pending" class="btn btn-sm btn-outline-warning {% if cur == 'pending' %}active{% endif %}">Pendientes</a>
+            <a href="/applications?status=applied" class="btn btn-sm btn-outline-success {% if cur == 'applied' %}active{% endif %}">Enviadas</a>
+            <a href="/applications?status=interview" class="btn btn-sm btn-outline-info {% if cur == 'interview' %}active{% endif %}">Entrevistas</a>
+            <a href="/applications?status=rejected" class="btn btn-sm btn-outline-danger {% if cur == 'rejected' %}active{% endif %}">Rechazadas</a>
         </div>
     </div>
     <div class="card-body">
@@ -81,9 +82,10 @@ async function updateStatus(appId, status) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({status: status}),
         });
-        location.reload();
+        showToast('Estado actualizado a "' + status + '".', 'success');
+        setTimeout(() => location.reload(), 800);
     } catch (e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'danger');
     }
 }
 </script>

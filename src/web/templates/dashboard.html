@@ -4,66 +4,52 @@
 {% block content %}
 <h2 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h2>
 
-<!-- Stats cards -->
-<div class="row g-4 mb-4">
-    <div class="col-md-3">
-        <div class="card stat-card bg-primary text-white">
-            <div class="card-body text-center">
-                <div class="stat-value">{{ stats.total_applications }}</div>
-                <div>Total Aplicaciones</div>
-            </div>
-        </div>
+<!-- KPI cards -->
+<div class="row g-3 mb-3">
+    <div class="col-md-3 col-6">
+        <div class="card kpi kpi-hero h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="kpi-icon" style="background:rgba(255,255,255,.2)"><i class="bi bi-send-check"></i></div>
+            <div><div class="stat-value">{{ stats.total_applications }}</div><div class="kpi-label">Total aplicaciones</div></div>
+        </div></div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card bg-success text-white">
-            <div class="card-body text-center">
-                <div class="stat-value">{{ stats.applied }}</div>
-                <div>Enviadas</div>
-            </div>
-        </div>
+    <div class="col-md-3 col-6">
+        <div class="card kpi h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="kpi-icon" style="background:#e6f4ea;color:#1e7e34"><i class="bi bi-send"></i></div>
+            <div><div class="stat-value">{{ stats.applied }}</div><div class="kpi-label">Enviadas</div></div>
+        </div></div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card bg-info text-white">
-            <div class="card-body text-center">
-                <div class="stat-value">{{ stats.interview }}</div>
-                <div>Entrevistas</div>
-            </div>
-        </div>
+    <div class="col-md-3 col-6">
+        <div class="card kpi h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="kpi-icon" style="background:#e7f1fb;color:#0a66c2"><i class="bi bi-people"></i></div>
+            <div><div class="stat-value">{{ stats.interview }}</div><div class="kpi-label">Entrevistas</div></div>
+        </div></div>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card bg-warning text-dark">
-            <div class="card-body text-center">
-                <div class="stat-value">{{ stats.applications_today }}</div>
-                <div>Aplicaciones Hoy</div>
-            </div>
-        </div>
+    <div class="col-md-3 col-6">
+        <div class="card kpi h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="kpi-icon" style="background:#eceaff;color:#5b4ddb"><i class="bi bi-calendar-check"></i></div>
+            <div><div class="stat-value">{{ stats.applications_today }}</div><div class="kpi-label">Aplicaciones hoy</div></div>
+        </div></div>
     </div>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-md-4">
-        <div class="card stat-card">
-            <div class="card-body text-center">
-                <div class="stat-value text-primary">{{ stats.total_jobs }}</div>
-                <div class="text-muted">Empleos Guardados</div>
-            </div>
-        </div>
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-6">
+        <div class="card kpi h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="kpi-icon" style="background:#e7f1fb;color:#0a66c2"><i class="bi bi-briefcase"></i></div>
+            <div><div class="stat-value">{{ stats.total_jobs }}</div><div class="kpi-label">Empleos guardados</div></div>
+        </div></div>
     </div>
-    <div class="col-md-4">
-        <div class="card stat-card">
-            <div class="card-body text-center">
-                <div class="stat-value text-success">{{ stats.total_letters }}</div>
-                <div class="text-muted">Cartas Generadas</div>
-            </div>
-        </div>
+    <div class="col-md-4 col-6">
+        <div class="card kpi h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="kpi-icon" style="background:#e3f7f4;color:#0d9488"><i class="bi bi-envelope-paper"></i></div>
+            <div><div class="stat-value">{{ stats.total_letters }}</div><div class="kpi-label">Cartas generadas</div></div>
+        </div></div>
     </div>
-    <div class="col-md-4">
-        <div class="card stat-card">
-            <div class="card-body text-center">
-                <div class="stat-value text-danger">{{ stats.rejected }}</div>
-                <div class="text-muted">Rechazadas</div>
-            </div>
-        </div>
+    <div class="col-md-4 col-12">
+        <div class="card kpi h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="kpi-icon" style="background:#fdeaea;color:#dc3545"><i class="bi bi-x-circle"></i></div>
+            <div><div class="stat-value">{{ stats.rejected }}</div><div class="kpi-label">Rechazadas</div></div>
+        </div></div>
     </div>
 </div>
 
@@ -87,7 +73,7 @@
             <div class="col-md-4">
                 <button class="btn btn-outline-info w-100 py-3" onclick="testClaude()">
                     <i class="bi bi-robot fs-4 d-block mb-1"></i>
-                    Test Claude API
+                    Probar conexión IA
                 </button>
             </div>
         </div>
@@ -168,11 +154,11 @@ async function executeSearch() {
             body: JSON.stringify(body),
         });
         const data = await res.json();
-        alert(`Se encontraron ${data.total} empleos.`);
+        showToast(`Se encontraron ${data.total} empleos.`, 'success');
         bootstrap.Modal.getInstance(document.getElementById('searchModal')).hide();
-        location.reload();
+        setTimeout(() => location.reload(), 900);
     } catch (e) {
-        alert('Error en la busqueda: ' + e.message);
+        showToast('Error en la búsqueda: ' + e.message, 'danger');
     }
 }
 
@@ -181,12 +167,12 @@ async function testClaude() {
         const res = await fetch('/api/settings/test-claude', {method: 'POST'});
         const data = await res.json();
         if (data.status === 'ok') {
-            alert('Claude API funciona correctamente: ' + data.response);
+            showToast('La conexión con la IA funciona correctamente.', 'success');
         } else {
-            alert('Error: ' + data.message);
+            showToast('Error: ' + data.message, 'danger');
         }
     } catch (e) {
-        alert('Error de conexion: ' + e.message);
+        showToast('Error de conexión: ' + e.message, 'danger');
     }
 }
 </script>

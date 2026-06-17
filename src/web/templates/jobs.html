@@ -1,67 +1,279 @@
 {% extends "base.html" %}
 {% block title %}Empleos - BotLinkedIn{% endblock %}
 
+{% block extra_css %}
+<link href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<style>
+    #jobsTable tr.filters th { padding: 4px; }
+    #jobsTable tr.filters input, #jobsTable tr.filters select { font-weight: normal; }
+    div.dt-container .dt-paging .dt-paging-button { padding: 2px 8px; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-briefcase"></i> Empleos Encontrados</h2>
-    <button class="btn btn-primary" onclick="searchJobs()">
-        <i class="bi bi-search"></i> Nueva Busqueda
-    </button>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-briefcase"></i> Empleos</h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-info" onclick="computeMatches(this)" title="Calcular el % de ajuste con IA (semántico, sin sesgo de idioma)">
+            <i class="bi bi-robot"></i> Calcular % (IA)
+        </button>
+        <button class="btn btn-primary" onclick="searchJobs()">
+            <i class="bi bi-search"></i> Nueva Busqueda
+        </button>
+    </div>
 </div>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link {% if view != 'saved' %}active{% endif %}" href="/jobs">
+            <i class="bi bi-search"></i> Encontrados
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if view == 'saved' %}active{% endif %}" href="/jobs?view=saved">
+            <i class="bi bi-floppy"></i> Guardados {% if saved_count %}<span class="badge bg-secondary">{{ saved_count }}</span>{% endif %}
+        </a>
+    </li>
+    <li class="nav-item ms-auto">
+        <button class="btn btn-sm btn-outline-success" style="margin-top:3px" onclick="showManualModal()">
+            <i class="bi bi-plus-lg"></i> Agregar manual
+        </button>
+    </li>
+</ul>
 
 <div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table id="jobsTable" class="table table-hover align-middle" style="width:100%">
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>Plataforma</th>
-                        <th>Titulo</th>
+                        <th>Título</th>
+                        <th>% HV</th>
                         <th>Empresa</th>
-                        <th>Ubicacion</th>
+                        <th>Ubicación</th>
+                        <th>Modalidad</th>
+                        <th>Fecha</th>
                         <th>Easy Apply</th>
-                        <th>Acciones</th>
+                        <th class="no-sort">Acciones</th>
+                    </tr>
+                    <tr class="filters">
+                        <th><input type="text" class="form-control form-control-sm" placeholder="ID"></th>
+                        <th>
+                            <select class="form-select form-select-sm">
+                                <option value="">Todas</option>
+                                <option value="linkedin">linkedin</option>
+                                <option value="indeed">indeed</option>
+                                <option value="glassdoor">glassdoor</option>
+                                <option value="computrabajo">computrabajo</option>
+                                <option value="elempleo">elempleo</option>
+                            </select>
+                        </th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar título"></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="mín %"></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar empresa"></th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="Filtrar ubicación"></th>
+                        <th>
+                            <select class="form-select form-select-sm">
+                                <option value="">Todas</option>
+                                <option value="Remoto">Remoto</option>
+                                <option value="Presencial">Presencial</option>
+                                <option value="Híbrido">Híbrido</option>
+                            </select>
+                        </th>
+                        <th><input type="text" class="form-control form-control-sm" placeholder="aaaa-mm-dd"></th>
+                        <th>
+                            <select class="form-select form-select-sm">
+                                <option value="">Todos</option>
+                                <option value="Si">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </th>
+                        <th class="text-nowrap">
+                            <label class="small mb-0 me-1" title="Seleccionar todo en esta página">
+                                <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"> Todo
+                            </label>
+                            <button class="btn btn-sm btn-outline-warning py-0 px-1" id="bulkSaveBtn" onclick="bulkSave()" disabled title="Guardar seleccionados"><i class="bi bi-floppy"></i></button>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="bulkDelBtn" onclick="bulkDelete()" disabled title="Eliminar seleccionados"><i class="bi bi-trash"></i></button>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for job in jobs %}
-                    <tr>
+                    {% set is_applied = applied_ids and job.id in applied_ids %}
+                    <tr data-job-id="{{ job.id }}"{% if is_applied %} class="table-success"{% endif %}>
                         <td class="text-muted">{{ job.id }}</td>
                         <td>
-                            <span class="badge bg-{% if job.platform == 'linkedin' %}primary{% elif job.platform == 'indeed' %}info{% else %}secondary{% endif %}">
+                            <span class="badge" style="color:#fff;background:{{ {'linkedin':'#0a66c2','indeed':'#2557a7','glassdoor':'#0caa41','computrabajo':'#1f8a70','elempleo':'#6f42c1'}.get(job.platform, '#6c757d') }}">
                                 {{ job.platform }}
                             </span>
                         </td>
-                        <td><strong>{{ job.title[:50] }}</strong></td>
-                        <td>{{ job.company[:30] }}</td>
-                        <td>{{ (job.location or '')[:25] }}</td>
                         <td>
-                            {% if job.is_easy_apply %}
-                            <span class="badge bg-success">Si</span>
+                            {% if job.url %}
+                            <a href="{{ job.url }}" target="_blank" rel="noopener"
+                               onclick="return openJobModal({{ job.id }}, this.href)"
+                               class="fw-bold text-decoration-none" title="{{ job.title }} (ver oferta)">
+                                {{ job.title[:60] }}
+                                <i class="bi bi-eye small text-muted"></i>
+                            </a>
                             {% else %}
-                            <span class="badge bg-secondary">No</span>
+                            <strong>{{ job.title[:60] }}</strong>
                             {% endif %}
                         </td>
+                        {% set ai = ai_scores.get(job.id) if ai_scores else none %}
+                        {% set q = quick_scores.get(job.id) if quick_scores else none %}
+                        <td data-order="{{ ai if ai is not none else (q if q is not none else -1) }}">
+                            {% if ai is not none %}
+                            <span class="badge bg-{% if ai >= 70 %}success{% elif ai >= 45 %}warning text-dark{% else %}danger{% endif %}" title="Evaluación con IA del ajuste de tu HV">{{ ai }}%</span>
+                            {% elif q is not none %}
+                            <span class="badge bg-light text-muted border" title="Aproximado (sin IA aún). Abre la oferta o usa 'Calcular % (IA)'.">~{{ q }}%</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ job.company[:35] }}</td>
+                        <td>{{ (job.location or '')[:30] }}</td>
                         <td>
-                            <a href="{{ job.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            {% set _m = ((job.title or '') ~ ' ' ~ (job.location or ''))|lower %}
+                            {% if 'híbrid' in _m or 'hibrid' in _m or 'hybrid' in _m or 'mixto' in _m %}
+                            <span class="badge bg-info text-dark">Híbrido</span>
+                            {% elif job.is_remote or 'remoto' in _m or 'remote' in _m or 'teletrabajo' in _m %}
+                            <span class="badge bg-success">Remoto</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark border">Presencial</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ (job.posted_date or job.scraped_at).strftime('%Y-%m-%d') if (job.posted_date or job.scraped_at) else '' }}</td>
+                        <td>
+                            {% if job.platform in ['linkedin', 'indeed'] %}
+                                {% if job.is_easy_apply %}
+                                <span class="badge bg-success">Si</span>
+                                {% else %}
+                                <span class="badge bg-secondary">No</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="white-space:nowrap">
+                            <input type="checkbox" class="form-check-input rowcheck me-1" value="{{ job.id }}" onclick="updateSel()" title="Seleccionar" style="vertical-align:middle">
+                            {% if is_applied %}
+                            <span class="badge bg-success" title="Ya te postulaste"><i class="bi bi-check-lg"></i> Aplicado</span>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-{% if job.saved %}warning{% else %}secondary{% endif %}" onclick="toggleSave({{ job.id }}, this)" title="{% if job.saved %}Quitar de guardados{% else %}Guardar{% endif %}">
+                                <i class="bi bi-floppy{% if job.saved %}-fill{% endif %}"></i>
+                            </button>
+                            <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-sm btn-outline-primary" title="Abrir">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
-                            <button class="btn btn-sm btn-outline-success" onclick="generateCover({{ job.id }})">
+                            <button class="btn btn-sm btn-outline-success" onclick="generateCover({{ job.id }})" title="Generar carta">
                                 <i class="bi bi-envelope-paper"></i>
                             </button>
                         </td>
                     </tr>
                     {% endfor %}
-                    {% if not jobs %}
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
-                            No hay empleos guardados. Realiza una busqueda primero.
-                        </td>
-                    </tr>
-                    {% endif %}
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Job preview modal (in-page box showing the offer) -->
+<div class="modal fade" id="jobPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" id="jpTitle">Oferta</h5>
+                    <div class="text-muted small" id="jpMeta"></div>
+                    <div id="jpMatch" class="mt-1"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="jpBody"></div>
+            <div class="px-3 pb-2"><div id="jpHint" class="small"></div></div>
+            <div class="modal-footer">
+                <a href="#" id="jpOpen" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-up-right"></i> Abrir oferta
+                </a>
+                <button type="button" class="btn btn-dark" id="jpCleanOpen" style="display:none" onclick="openClean()">
+                    <i class="bi bi-window-stack"></i> Abrir en navegador limpio
+                </button>
+                <button type="button" class="btn btn-outline-dark" onclick="addToPipeline()">
+                    <i class="bi bi-kanban"></i> Guardar en seguimiento
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="jpSave" onclick="toggleSavePopup()">
+                    <i class="bi bi-floppy"></i> Guardar
+                </button>
+                <button type="button" class="btn btn-info" onclick="askAlex()">
+                    <i class="bi bi-robot"></i> Consejo de Alex (ajustar HV)
+                </button>
+                <button type="button" class="btn btn-success" id="jpCover">
+                    <i class="bi bi-envelope-paper"></i> Generar carta
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- "Did you apply?" mini modal -->
+<div class="modal fade" id="appliedModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-question-circle"></i> ¿Aplicaste a esta oferta?</h6>
+            </div>
+            <div class="modal-body small text-muted" id="appliedBody">
+                Márcalo para llevar el control en el dashboard.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="appliedNo" data-bs-dismiss="modal">No</button>
+                <button type="button" class="btn btn-success btn-sm" id="appliedYes" onclick="confirmApplied()">
+                    <i class="bi bi-check-lg"></i> Sí, apliqué
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add manual vacancy modal -->
+<div class="modal fade" id="manualModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-lg"></i> Agregar vacante manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">URL de la vacante</label>
+                    <input type="url" class="form-control" id="manUrl" placeholder="https://...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Título / cargo</label>
+                    <input type="text" class="form-control" id="manTitle" placeholder="Ej: Abogado corporativo">
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col"><input type="text" class="form-control" id="manCompany" placeholder="Empresa"></div>
+                    <div class="col"><input type="text" class="form-control" id="manLocation" placeholder="Ubicación"></div>
+                </div>
+                <label class="form-label d-block">¿Ya aplicaste a esta vacante?</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="manApplied" id="manAppliedYes" value="1">
+                    <label class="form-check-label" for="manAppliedYes">Sí, ya apliqué</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="manApplied" id="manAppliedNo" value="0" checked>
+                    <label class="form-check-label" for="manAppliedNo">No, aún no</label>
+                </div>
+                <div class="form-text">Si ya aplicaste, la guardo y la paso al tablero de Seguimiento en la etapa “Postulado”.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="manSaveBtn" onclick="submitManual()"><i class="bi bi-check-lg"></i> Guardar</button>
+            </div>
         </div>
     </div>
 </div>
@@ -75,6 +287,18 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <!-- AI suggestions based on the parsed resume -->
+                <div class="mb-3" id="suggestionsWrap">
+                    <label class="form-label">
+                        <i class="bi bi-stars text-warning"></i> Sugerencias para tu perfil
+                    </label>
+                    <div id="suggestionsBox" class="d-flex flex-wrap gap-2">
+                        <span class="text-muted small">
+                            <span class="spinner-border spinner-border-sm"></span> Generando sugerencias...
+                        </span>
+                    </div>
+                </div>
+                <hr>
                 <div class="mb-3">
                     <label class="form-label">Palabras clave</label>
                     <input type="text" class="form-control" id="searchKeywords" placeholder="python developer...">
@@ -97,15 +321,31 @@
                         <input class="form-check-input" type="checkbox" id="platGlassdoor">
                         <label class="form-check-label" for="platGlassdoor">Glassdoor</label>
                     </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="platComputrabajo" checked>
+                        <label class="form-check-label" for="platComputrabajo">Computrabajo <span class="badge bg-light text-dark">🇨🇴</span></label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Fecha de publicación</label>
+                    <select class="form-select" id="searchDate">
+                        <option value="0">Cualquier fecha</option>
+                        <option value="72">Últimos 3 días</option>
+                        <option value="168">Última semana</option>
+                        <option value="720">Último mes</option>
+                    </select>
                 </div>
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="searchRemote">
                     <label class="form-check-label" for="searchRemote">Solo remoto</label>
                 </div>
             </div>
+            <div class="px-3">
+                <div id="searchStatus" class="small"></div>
+            </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="executeSearch()">
+                <button type="button" class="btn btn-primary" id="btnSearch" onclick="executeSearch()">
                     <i class="bi bi-search"></i> Buscar
                 </button>
             </div>
@@ -115,9 +355,405 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.min.js"></script>
 <script>
+// Initialise the jobs table: pagination, sorting and per-column filters.
+$(document).ready(function () {
+    if (!$('#jobsTable tbody tr').length) return;  // nothing to enhance
+    const table = new DataTable('#jobsTable', {
+        orderCellsTop: true,
+        pageLength: 15,
+        lengthMenu: [10, 15, 25, 50, 100],
+        order: [[7, 'desc']],  // newest by date first (Fecha column)
+        columnDefs: [{ targets: 'no-sort', orderable: false, searchable: false }],
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.1.8/i18n/es-ES.json' }
+    });
+    // Minimum-% filter on the "% HV" column (index 3).
+    const minPct = $('#jobsTable thead tr.filters th').eq(3).find('input');
+    DataTable.ext.search.push(function (settings, data) {
+        if (settings.nTable.id !== 'jobsTable') return true;
+        const m = parseInt(minPct.val(), 10);
+        if (isNaN(m)) return true;
+        const v = parseInt((data[3] || '').replace('%', ''), 10);
+        return isNaN(v) ? false : v >= m;
+    });
+    minPct.on('click', e => e.stopPropagation());
+    minPct.on('keyup change', () => table.draw());
+    // Wire each other filter input/select in the .filters header row to its column.
+    table.columns().every(function (index) {
+        if (index === 3 || index === 9) return;  // % min-filter / actions (bulk controls)
+        const column = this;
+        const cell = $('#jobsTable thead tr.filters th').eq(index);
+        const field = cell.find('input, select');
+        field.on('click', e => e.stopPropagation());
+        field.on('keyup change', function () {
+            if (column.search() !== this.value) column.search(this.value).draw();
+        });
+    });
+    // Reset bulk selection when the table redraws (paging, filter, sort).
+    table.on('draw', function () {
+        const sa = document.getElementById('selectAll');
+        if (sa) { sa.checked = false; sa.indeterminate = false; }
+        updateSel();
+    });
+});
+
+let _suggestionsLoaded = false;
+
+// Show the job offer inside an in-page modal. LinkedIn blocks iframe embedding
+// (X-Frame-Options), so we load the scraped offer details from our own API
+// instead of the live page.
+let _jpModal = null;
+let _appliedModal = null;
+let _previewJobId = null;
+function openJobModal(jobId, url) {
+    _previewJobId = jobId;
+    document.getElementById('jpOpen').href = url;
+    document.getElementById('jpTitle').textContent = 'Oferta';
+    document.getElementById('jpMeta').textContent = '';
+    document.getElementById('jpHint').innerHTML = '';
+    document.getElementById('jpMatch').innerHTML = '';
+    document.getElementById('jpCleanOpen').style.display = 'none';
+    document.getElementById('jpBody').innerHTML =
+        '<div class="text-center text-muted py-5">'
+        + '<span class="spinner-border"></span><div class="mt-2">Cargando oferta...</div></div>';
+    document.getElementById('jpCover').onclick = () => generateCover(jobId);
+    // After opening the offer, ask whether the user applied.
+    document.getElementById('jpOpen').onclick = function () {
+        setTimeout(askApplied, 400);  // let the new tab open first
+        return true;                  // allow the link to open normally
+    };
+
+    if (!_jpModal) _jpModal = new bootstrap.Modal(document.getElementById('jobPreviewModal'));
+    _jpModal.show();
+
+    fetch('/api/jobs/' + jobId + '/preview')
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('jpTitle').textContent = d.title || 'Oferta';
+            document.getElementById('jpMeta').textContent =
+                [d.company, d.location].filter(Boolean).join(' · ');
+            const m = d.match;
+            document.getElementById('jpMatch').innerHTML = (m != null)
+                ? '<span class="badge bg-' + (m >= 60 ? 'success' : m >= 40 ? 'warning text-dark' : 'secondary') + '"><i class="bi bi-graph-up-arrow"></i> Tu HV se ajusta ' + m + '% a esta oferta</span>'
+                : '';
+            setSaveBtn(!!d.saved);
+            // Some Colombian portals block direct access (403). Tell the user the
+            // full offer is already here and how to reach the portal to apply.
+            const portals = { computrabajo: 'https://co.computrabajo.com/', elempleo: 'https://www.elempleo.com/co/' };
+            const hint = document.getElementById('jpHint');
+            if (portals[d.platform]) {
+                document.getElementById('jpCleanOpen').style.display = 'inline-block';
+                hint.innerHTML =
+                    '<div class="alert alert-warning py-2 mb-0">⚠️ Si este portal te bloquea (403) con “Abrir oferta”, '
+                    + 'usa <strong>“Abrir en navegador limpio”</strong>: abre la oferta en una ventana nueva sin el bloqueo.</div>';
+            } else {
+                document.getElementById('jpCleanOpen').style.display = 'none';
+                hint.innerHTML = '';
+            }
+            const desc = (d.description || '').trim();
+            if (desc) {
+                const div = document.createElement('div');
+                div.style.whiteSpace = 'pre-wrap';
+                div.style.fontSize = '0.92rem';
+                div.style.lineHeight = '1.5';
+                div.textContent = desc;  // textContent = safe, no HTML injection
+                const body = document.getElementById('jpBody');
+                body.innerHTML = '';
+                body.appendChild(div);
+            } else {
+                document.getElementById('jpBody').innerHTML =
+                    '<div class="alert alert-warning mb-0">No se pudo cargar la descripción aquí. '
+                    + 'Usa el botón <strong>Abrir en LinkedIn</strong>.</div>';
+            }
+        })
+        .catch(e => {
+            document.getElementById('jpBody').innerHTML =
+                '<div class="alert alert-danger mb-0">Error cargando la oferta: ' + e.message + '</div>';
+        });
+    return false;  // prevent the default tab navigation
+}
+
+// After opening an offer, ask whether the user applied (control in dashboard).
+function askApplied() {
+    const previewEl = document.getElementById('jobPreviewModal');
+    if (_jpModal) {
+        const onHidden = function () {
+            previewEl.removeEventListener('hidden.bs.modal', onHidden);
+            showAppliedModal();
+        };
+        previewEl.addEventListener('hidden.bs.modal', onHidden);
+        _jpModal.hide();
+    } else {
+        showAppliedModal();
+    }
+}
+
+function showAppliedModal() {
+    document.getElementById('appliedBody').innerHTML = 'Márcalo para llevar el control en el dashboard.';
+    document.getElementById('appliedYes').disabled = false;
+    if (!_appliedModal) _appliedModal = new bootstrap.Modal(document.getElementById('appliedModal'));
+    _appliedModal.show();
+}
+
+// Highlight the row + add an "Aplicado" badge without reloading (if the row
+// is on the current DataTables page). The server renders it on the next load.
+function markRowApplied(jobId) {
+    const row = document.querySelector('#jobsTable tbody tr[data-job-id="' + jobId + '"]');
+    if (!row || row.classList.contains('table-success')) return;
+    row.classList.add('table-success');
+    const actions = row.querySelector('td:last-child');
+    if (actions && !actions.querySelector('.badge.bg-success')) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-success me-1';
+        badge.title = 'Ya te postulaste';
+        badge.innerHTML = '<i class="bi bi-check-lg"></i> Aplicado';
+        actions.insertBefore(badge, actions.firstChild);
+    }
+}
+
+// Open the chat with Alex, passing this offer as context for HV advice.
+function askAlex() {
+    window.location.href = '/chat?job=' + _previewJobId;
+}
+
+// Add a manual vacancy (by URL). If applied, it goes to the Kanban board.
+let _manualModal = null;
+function showManualModal() {
+    ['manUrl', 'manTitle', 'manCompany', 'manLocation'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('manAppliedNo').checked = true;
+    if (!_manualModal) _manualModal = new bootstrap.Modal(document.getElementById('manualModal'));
+    _manualModal.show();
+}
+
+async function submitManual() {
+    const title = document.getElementById('manTitle').value.trim();
+    const url = document.getElementById('manUrl').value.trim();
+    if (!title && !url) { showToast('Indica al menos el título o la URL.', 'danger'); return; }
+    const applied = document.getElementById('manAppliedYes').checked;
+    const btn = document.getElementById('manSaveBtn');
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/jobs/manual', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url, title,
+                company: document.getElementById('manCompany').value.trim(),
+                location: document.getElementById('manLocation').value.trim(),
+                applied,
+            }),
+        });
+        const d = await res.json();
+        if (res.ok) {
+            if (applied && d.in_pipeline) {
+                showToast('Agregada y enviada al tablero (Postulado).', 'success');
+                setTimeout(() => { window.location.href = '/pipeline'; }, 900);
+            } else {
+                showToast('Vacante guardada.', 'success');
+                setTimeout(() => { window.location.href = '/jobs?view=saved'; }, 900);
+            }
+        } else {
+            showToast(d.detail || 'No se pudo guardar.', 'danger');
+            btn.disabled = false;
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+        btn.disabled = false;
+    }
+}
+
+// Compute the AI fit % for the jobs in the current view (cached afterwards).
+async function computeMatches(btn) {
+    const view = new URLSearchParams(location.search).get('view') || 'found';
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Calculando con IA...';
+    try {
+        const res = await fetch('/api/jobs/compute-matches', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ view }),
+        });
+        const d = await res.json();
+        showToast('Coincidencias evaluadas con IA: ' + (d.count || 0), 'success');
+        setTimeout(() => location.reload(), 800);
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
+}
+
+// Bookmark / un-bookmark a job from the row floppy button.
+async function toggleSave(id, btn) {
+    try {
+        const res = await fetch('/api/jobs/' + id + '/save', { method: 'POST' });
+        const d = await res.json();
+        btn.querySelector('i').className = 'bi bi-floppy' + (d.saved ? '-fill' : '');
+        btn.classList.toggle('btn-outline-warning', d.saved);
+        btn.classList.toggle('btn-outline-secondary', !d.saved);
+        btn.title = d.saved ? 'Quitar de guardados' : 'Guardar';
+        showToast(d.saved ? 'Guardado.' : 'Quitado de guardados.', 'success');
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+
+function setSaveBtn(saved) {
+    const btn = document.getElementById('jpSave');
+    btn.innerHTML = '<i class="bi bi-floppy' + (saved ? '-fill' : '') + '"></i> ' + (saved ? 'Guardado' : 'Guardar');
+    btn.classList.toggle('btn-warning', saved);
+    btn.classList.toggle('btn-outline-secondary', !saved);
+}
+
+async function toggleSavePopup() {
+    try {
+        const res = await fetch('/api/jobs/' + _previewJobId + '/save', { method: 'POST' });
+        const d = await res.json();
+        setSaveBtn(d.saved);
+        showToast(d.saved ? 'Guardado.' : 'Quitado de guardados.', 'success');
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+
+// ── Bulk selection ────────────────────────────────────────────
+function rowChecks() { return Array.from(document.querySelectorAll('#jobsTable .rowcheck')); }
+function selectedIds() { return rowChecks().filter(c => c.checked).map(c => parseInt(c.value)); }
+
+function updateSel() {
+    const all = rowChecks();
+    const sel = all.filter(c => c.checked);
+    const n = sel.length;
+    document.getElementById('bulkSaveBtn').disabled = n === 0;
+    document.getElementById('bulkDelBtn').disabled = n === 0;
+    const sa = document.getElementById('selectAll');
+    sa.checked = all.length > 0 && n === all.length;
+    sa.indeterminate = n > 0 && n < all.length;
+}
+
+function toggleSelectAll(cb) { rowChecks().forEach(c => { c.checked = cb.checked; }); updateSel(); }
+
+async function bulkAction(action) {
+    const ids = selectedIds();
+    if (!ids.length) return;
+    if (action === 'delete' && !confirm('¿Eliminar ' + ids.length + ' empleo(s) de la lista? No se puede deshacer.')) return;
+    try {
+        const res = await fetch('/api/jobs/bulk', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ids }),
+        });
+        const d = await res.json();
+        if (res.ok) {
+            showToast((action === 'save' ? 'Guardados: ' : 'Eliminados: ') + d.count, 'success');
+            setTimeout(() => location.reload(), 700);
+        } else {
+            showToast(d.detail || 'No se pudo completar.', 'danger');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+function bulkSave() { bulkAction('save'); }
+function bulkDelete() { bulkAction('delete'); }
+
+// Add this job to the pipeline board at the "Guardado" stage.
+async function addToPipeline() {
+    try {
+        const res = await fetch('/api/pipeline/add-job/' + _previewJobId, { method: 'POST' });
+        const d = await res.json();
+        if (res.ok) showToast(d.existing ? 'Ya estaba en seguimiento (restaurado).' : '✅ Guardado en seguimiento.', 'success');
+        else showToast(d.detail || 'No se pudo guardar.', 'danger');
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+
+// Open the offer in a fresh Chromium window (Playwright) to bypass portal 403s.
+async function openClean() {
+    try {
+        const res = await fetch('/api/jobs/' + _previewJobId + '/open-browser', { method: 'POST' });
+        if (res.ok) {
+            showToast('Abriendo la oferta en un navegador limpio… (puede tardar unos segundos)', 'info');
+            setTimeout(askApplied, 2000);
+        } else {
+            showToast('No se pudo abrir el navegador.', 'danger');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+
+async function confirmApplied() {
+    const btn = document.getElementById('appliedYes');
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/jobs/' + _previewJobId + '/applied', { method: 'POST' });
+        const d = await res.json();
+        if (res.ok) {
+            document.getElementById('appliedBody').innerHTML =
+                '<span class="text-success">✅ Registrado. Aparecerá en el dashboard.</span>';
+            markRowApplied(_previewJobId);
+            setTimeout(() => { if (_appliedModal) _appliedModal.hide(); }, 1000);
+        } else {
+            document.getElementById('appliedBody').innerHTML =
+                '<span class="text-danger">' + (d.detail || 'No se pudo registrar.') + '</span>';
+            btn.disabled = false;
+        }
+    } catch (e) {
+        document.getElementById('appliedBody').innerHTML =
+            '<span class="text-danger">Error: ' + e.message + '</span>';
+        btn.disabled = false;
+    }
+}
+
 function searchJobs() {
     new bootstrap.Modal(document.getElementById('searchModal')).show();
+    if (!_suggestionsLoaded) {
+        _suggestionsLoaded = true;
+        loadSuggestions();
+    }
+}
+
+async function loadSuggestions() {
+    const box = document.getElementById('suggestionsBox');
+    try {
+        const res = await fetch('/api/jobs/suggestions');
+        if (!res.ok) {
+            box.innerHTML = '<span class="text-warning small">No se pudieron cargar las sugerencias (HTTP '
+                + res.status + '). Reinicia el dashboard para aplicar la última versión.</span>';
+            return;
+        }
+        const data = await res.json();
+
+        if (data.reason === 'no_resume') {
+            box.innerHTML = '<span class="text-muted small">Sube y procesa tu hoja de vida para ver sugerencias.</span>';
+            return;
+        }
+        if (!data.queries || !data.queries.length) {
+            box.innerHTML = '<span class="text-muted small">No se pudieron generar sugerencias.</span>';
+            return;
+        }
+        // Pre-fill location from the suggestion if empty.
+        const locInput = document.getElementById('searchLocation');
+        if (data.location && !locInput.value) locInput.value = data.location;
+
+        box.innerHTML = '';
+        data.queries.forEach(q => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'btn btn-sm btn-outline-primary rounded-pill';
+            chip.innerHTML = '<i class="bi bi-search"></i> ' + q;
+            chip.onclick = () => {
+                document.getElementById('searchKeywords').value = q;
+                executeSearch();
+            };
+            box.appendChild(chip);
+        });
+    } catch (e) {
+        box.innerHTML = '<span class="text-danger small">Error cargando sugerencias.</span>';
+    }
 }
 
 async function executeSearch() {
@@ -125,12 +761,37 @@ async function executeSearch() {
     if (document.getElementById('platLinkedin').checked) platforms.push('linkedin');
     if (document.getElementById('platIndeed').checked) platforms.push('indeed');
     if (document.getElementById('platGlassdoor').checked) platforms.push('glassdoor');
+    if (document.getElementById('platComputrabajo').checked) platforms.push('computrabajo');
+
+    const keywords = document.getElementById('searchKeywords').value.trim();
+    const location = document.getElementById('searchLocation').value.trim();
+    const status = document.getElementById('searchStatus');
+    const btn = document.getElementById('btnSearch');
+
+    if (!keywords) {
+        status.innerHTML = '<span class="text-danger">Escribe o elige una búsqueda.</span>';
+        return;
+    }
+    if (!platforms.length) {
+        status.innerHTML = '<span class="text-danger">Selecciona al menos una plataforma.</span>';
+        return;
+    }
+
+    // Show what is being searched.
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Buscando...';
+    status.innerHTML =
+        '<div class="alert alert-info py-2 mb-2">'
+        + '<span class="spinner-border spinner-border-sm"></span> '
+        + 'Buscando <strong>"' + keywords + '"</strong>'
+        + (location ? ' en <strong>' + location + '</strong>' : '')
+        + ' &middot; ' + platforms.join(', ') + '...'
+        + '</div>';
 
     const body = {
-        keywords: document.getElementById('searchKeywords').value,
-        location: document.getElementById('searchLocation').value,
-        platforms: platforms,
+        keywords, location, platforms,
         remote: document.getElementById('searchRemote').checked,
+        posted_within_hours: parseInt(document.getElementById('searchDate').value) || 0,
     };
 
     try {
@@ -140,11 +801,22 @@ async function executeSearch() {
             body: JSON.stringify(body),
         });
         const data = await res.json();
-        alert(`Se encontraron ${data.total} empleos.`);
-        bootstrap.Modal.getInstance(document.getElementById('searchModal')).hide();
-        location.reload();
+        const total = data.total || 0;
+        status.innerHTML =
+            '<div class="alert alert-' + (total ? 'success' : 'warning') + ' py-2 mb-2">'
+            + (total
+                ? '✅ Se encontraron <strong>' + total + '</strong> empleos para "' + keywords + '". Actualizando...'
+                : '⚠️ No se encontraron empleos para "' + keywords + '". Prueba otra búsqueda.')
+            + '</div>';
+        if (total) {
+            // Force a fresh load of the "found" view (avoid the cached page).
+            setTimeout(() => { window.location.href = '/jobs?t=' + Date.now(); }, 900);
+        }
     } catch (e) {
-        alert('Error: ' + e.message);
+        status.innerHTML = '<div class="alert alert-danger py-2 mb-2">Error: ' + e.message + '</div>';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-search"></i> Buscar';
     }
 }
 
@@ -158,12 +830,12 @@ async function generateCover(jobId) {
         });
         const data = await res.json();
         if (data.id) {
-            alert('Carta generada exitosamente. Ve a la seccion de Cartas para verla.');
+            showToast('✅ Carta generada. Revísala en la sección Cartas.', 'success');
         } else {
-            alert('Error: ' + (data.detail || 'Error desconocido'));
+            showToast('Error: ' + (data.detail || 'Error desconocido'), 'danger');
         }
     } catch (e) {
-        alert('Error: ' + e.message);
+        showToast('Error: ' + e.message, 'danger');
     }
 }
 </script>
