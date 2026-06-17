@@ -33,19 +33,6 @@
 
 <div class="card">
     <div class="card-body">
-        <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
-            <div class="form-check mb-0">
-                <input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleSelectAll(this)">
-                <label class="form-check-label small" for="selectAll">Seleccionar todo</label>
-            </div>
-            <button class="btn btn-sm btn-outline-warning" id="bulkSaveBtn" onclick="bulkSave()" disabled>
-                <i class="bi bi-floppy"></i> Guardar
-            </button>
-            <button class="btn btn-sm btn-outline-danger" id="bulkDelBtn" onclick="bulkDelete()" disabled>
-                <i class="bi bi-trash"></i> Eliminar
-            </button>
-            <span class="small text-muted" id="selInfo"></span>
-        </div>
         <div class="table-responsive">
             <table id="jobsTable" class="table table-hover align-middle" style="width:100%">
                 <thead>
@@ -93,7 +80,13 @@
                                 <option value="No">No</option>
                             </select>
                         </th>
-                        <th></th>
+                        <th class="text-nowrap">
+                            <label class="small mb-0 me-1" title="Seleccionar todo en esta página">
+                                <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"> Todo
+                            </label>
+                            <button class="btn btn-sm btn-outline-warning py-0 px-1" id="bulkSaveBtn" onclick="bulkSave()" disabled title="Guardar seleccionados"><i class="bi bi-floppy"></i></button>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-1" id="bulkDelBtn" onclick="bulkDelete()" disabled title="Eliminar seleccionados"><i class="bi bi-trash"></i></button>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -341,7 +334,7 @@ $(document).ready(function () {
     minPct.on('keyup change', () => table.draw());
     // Wire each other filter input/select in the .filters header row to its column.
     table.columns().every(function (index) {
-        if (index === 3) return;  // % column handled by the min filter above
+        if (index === 3 || index === 9) return;  // % min-filter / actions (bulk controls)
         const column = this;
         const cell = $('#jobsTable thead tr.filters th').eq(index);
         const field = cell.find('input, select');
@@ -520,7 +513,6 @@ function updateSel() {
     const n = sel.length;
     document.getElementById('bulkSaveBtn').disabled = n === 0;
     document.getElementById('bulkDelBtn').disabled = n === 0;
-    document.getElementById('selInfo').textContent = n ? (n + ' seleccionado(s)') : '';
     const sa = document.getElementById('selectAll');
     sa.checked = all.length > 0 && n === all.length;
     sa.indeterminate = n > 0 && n < all.length;
@@ -703,7 +695,8 @@ async function executeSearch() {
                 : '⚠️ No se encontraron empleos para "' + keywords + '". Prueba otra búsqueda.')
             + '</div>';
         if (total) {
-            setTimeout(() => location.reload(), 1200);
+            // Force a fresh load of the "found" view (avoid the cached page).
+            setTimeout(() => { window.location.href = '/jobs?t=' + Date.now(); }, 900);
         }
     } catch (e) {
         status.innerHTML = '<div class="alert alert-danger py-2 mb-2">Error: ' + e.message + '</div>';
