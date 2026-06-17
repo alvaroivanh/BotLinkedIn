@@ -43,8 +43,10 @@ def jobs_page(request: Request, view: str = "found"):
 
     applied_ids = {a.job_id for a in ApplicationRepo(session).list_all(status="applied")}
     resume = ResumeRepo(session).get_parsed_data()
-    # % match between the resume and each job (heuristic, no AI cost).
-    match_scores = (
+    # AI fit % (cached). For jobs not yet evaluated, show a fast heuristic as a
+    # provisional/approximate value.
+    ai_scores = {j.id: j.match_score for j in jobs}
+    quick_scores = (
         {j.id: match_score(resume, j.title, j.description or "") for j in jobs}
         if resume else {}
     )
@@ -56,7 +58,8 @@ def jobs_page(request: Request, view: str = "found"):
         {
             "jobs": jobs,
             "applied_ids": applied_ids,
-            "match_scores": match_scores,
+            "ai_scores": ai_scores,
+            "quick_scores": quick_scores,
             "view": view,
             "saved_count": saved_count,
         },

@@ -1,10 +1,39 @@
-"""Heuristic match between a parsed resume and a job posting.
+"""Match between a parsed resume and a job posting.
 
-No AI / no cost: uses fuzzy string matching (thefuzz/rapidfuzz) to estimate how
-well the candidate's profile fits a job. Returns a 0-100 percentage.
+Two scorers:
+- match_score(): fast heuristic (fuzzy string matching, no AI). Language-biased.
+- ai_match_score(): semantic score via the LLM (understands ES/EN equivalence).
 """
 
+import re
+
 from thefuzz import fuzz
+
+
+def ai_match_score(resume: dict, title: str, description: str = "") -> int | None:
+    """Semantic 0-100 fit score via the LLM. Language-independent. None on error."""
+    if not resume or not (title or "").strip():
+        return None
+    profile = _profile_text(resume)[:1800]
+    job = ((title or "") + "\n" + (description or ""))[:2500]
+    system = (
+        "Eres un evaluador de selección experto. Calificas de 0 a 100 qué tan bien "
+        "encaja el perfil del candidato con la vacante, según el SIGNIFICADO, no el "
+        "idioma: un cargo en inglés equivale a su versión en español (p. ej. 'Legal "
+        "Counsel' = 'Abogado/Asesor jurídico'). Considera área, seniority y funciones. "
+        "Responde ÚNICAMENTE el número entero de 0 a 100, sin texto."
+    )
+    user = f"PERFIL DEL CANDIDATO:\n{profile}\n\nVACANTE:\n{job}\n\nNúmero 0-100:"
+    try:
+        from src.ai.client import get_client
+
+        raw = get_client().generate(system=system, user=user, max_tokens=8)
+        m = re.search(r"\d{1,3}", raw or "")
+        if not m:
+            return None
+        return max(0, min(100, int(m.group(0))))
+    except Exception:
+        return None
 
 
 def _profile_text(resume: dict) -> str:

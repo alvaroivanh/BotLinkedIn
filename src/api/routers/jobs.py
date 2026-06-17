@@ -146,10 +146,21 @@ def job_preview(job_id: int):
             except Exception:  # noqa: BLE001 - preview is best-effort
                 pass
 
-    from src.cv.matcher import match_score
+    from src.cv.matcher import ai_match_score, match_score
 
     resume = ResumeRepo(session).get_parsed_data()
-    match = match_score(resume, job.title, description) if resume else None
+    match = None
+    if resume:
+        if job.match_score is None:
+            ai = ai_match_score(resume, job.title, description)
+            if ai is not None:
+                job.match_score = ai
+                session.commit()
+        match = (
+            job.match_score
+            if job.match_score is not None
+            else match_score(resume, job.title, description)
+        )
 
     result = {
         "id": job.id,
@@ -203,6 +214,48 @@ def bulk_action(payload: dict = Body(...)):
         return {"ok": True, "count": len(ids)}
     finally:
         session.close()
+
+
+@router.post("/compute-matches")
+def compute_matches(payload: dict = Body(...)):
+    """Compute the AI fit % for jobs in a view that don't have one yet (cached)."""
+    view = payload.get("view", "found")
+    session = get_session()
+    q = session.query(Job).filter(Job.match_score.is_(None))
+    if view == "saved":
+        q = q.filter(Job.saved.is_(True))
+    else:
+        q = q.filter(Job.from_last_search.is_(True))
+    jobs = q.limit(80).all()
+    resume = ResumeRepo(session).get_parsed_data()
+    items = [(j.id, j.title, j.description or "") for j in jobs]
+    session.close()
+
+    if not resume or not items:
+        return {"ok": True, "count": 0}
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    from src.cv.matcher import ai_match_score
+
+    def work(it):
+        jid, title, desc = it
+        return jid, ai_match_score(resume, title, desc)
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        for jid, score in ex.map(work, items):
+            if score is not None:
+                results[jid] = score
+
+    session2 = get_session()
+    try:
+        for jid, score in results.items():
+            session2.query(Job).filter_by(id=jid).update({Job.match_score: score})
+        session2.commit()
+    finally:
+        session2.close()
+    return {"ok": True, "count": len(results)}
 
 
 @router.post("/{job_id}/save")

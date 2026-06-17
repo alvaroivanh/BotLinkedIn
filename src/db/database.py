@@ -42,6 +42,9 @@ def _migrate_jobs():
             # Backfill: treat current jobs as the latest search so the page isn't empty.
             conn.execute(text("UPDATE jobs SET from_last_search = 1"))
             added.append("from_last_search")
+        if "match_score" not in existing:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN match_score INTEGER"))
+            added.append("match_score")
 
 
 def _migrate_applications():

@@ -45,6 +45,7 @@ class Job(Base):
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     saved: Mapped[bool] = mapped_column(Boolean, default=False)  # bookmarked by the user
     from_last_search: Mapped[bool] = mapped_column(Boolean, default=False)  # in the latest search
+    match_score: Mapped[int | None] = mapped_column(Integer)  # cached AI fit % (0-100)
 
     applications: Mapped[list["Application"]] = relationship(back_populates="job")
 

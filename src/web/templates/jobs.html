@@ -13,9 +13,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-briefcase"></i> Empleos</h2>
-    <button class="btn btn-primary" onclick="searchJobs()">
-        <i class="bi bi-search"></i> Nueva Busqueda
-    </button>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-info" onclick="computeMatches(this)" title="Calcular el % de ajuste con IA (semántico, sin sesgo de idioma)">
+            <i class="bi bi-robot"></i> Calcular % (IA)
+        </button>
+        <button class="btn btn-primary" onclick="searchJobs()">
+            <i class="bi bi-search"></i> Nueva Busqueda
+        </button>
+    </div>
 </div>
 
 <ul class="nav nav-tabs mb-3">
@@ -111,10 +116,13 @@
                             <strong>{{ job.title[:60] }}</strong>
                             {% endif %}
                         </td>
-                        {% set score = match_scores.get(job.id) if match_scores else none %}
-                        <td data-order="{{ score if score is not none else -1 }}">
-                            {% if score is not none %}
-                            <span class="badge bg-{% if score >= 60 %}success{% elif score >= 40 %}warning text-dark{% else %}secondary{% endif %}" title="Ajuste de tu HV a esta oferta">{{ score }}%</span>
+                        {% set ai = ai_scores.get(job.id) if ai_scores else none %}
+                        {% set q = quick_scores.get(job.id) if quick_scores else none %}
+                        <td data-order="{{ ai if ai is not none else (q if q is not none else -1) }}">
+                            {% if ai is not none %}
+                            <span class="badge bg-{% if ai >= 70 %}success{% elif ai >= 45 %}warning text-dark{% else %}danger{% endif %}" title="Evaluación con IA del ajuste de tu HV">{{ ai }}%</span>
+                            {% elif q is not none %}
+                            <span class="badge bg-light text-muted border" title="Aproximado (sin IA aún). Abre la oferta o usa 'Calcular % (IA)'.">~{{ q }}%</span>
                             {% else %}
                             <span class="text-muted">—</span>
                             {% endif %}
@@ -464,6 +472,27 @@ function markRowApplied(jobId) {
 // Open the chat with Alex, passing this offer as context for HV advice.
 function askAlex() {
     window.location.href = '/chat?job=' + _previewJobId;
+}
+
+// Compute the AI fit % for the jobs in the current view (cached afterwards).
+async function computeMatches(btn) {
+    const view = new URLSearchParams(location.search).get('view') || 'found';
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Calculando con IA...';
+    try {
+        const res = await fetch('/api/jobs/compute-matches', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ view }),
+        });
+        const d = await res.json();
+        showToast('Coincidencias evaluadas con IA: ' + (d.count || 0), 'success');
+        setTimeout(() => location.reload(), 800);
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+        btn.disabled = false;
+        btn.innerHTML = orig;
+    }
 }
 
 // Bookmark / un-bookmark a job from the row floppy button.
