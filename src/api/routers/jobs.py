@@ -362,7 +362,6 @@ def _get_scraper(platform: str):
     elif platform == "computrabajo":
         from src.scraper.colombian import ComputrabajoScraper
         return ComputrabajoScraper()
-    elif platform == "elempleo":
-        from src.scraper.colombian import ElempleoScraper
-        return ElempleoScraper()
+    # 'elempleo' is disabled: its search is JS-rendered and its API needs auth,
+    # so the server HTML returns generic (unfiltered) listings. Use jobspy/Computrabajo.
     return None

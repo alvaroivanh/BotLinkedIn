@@ -117,12 +117,14 @@ class ComputrabajoScraper(_ColombianBase):
 
     def search(self, criteria: SearchCriteria, max_pages: int = 2) -> SearchResult:
         jobs: list[JobPosting] = []
-        path = f"/trabajo-de-{_slug(criteria.keywords)}"
+        # Use the real keyword search (?q=...). The old /trabajo-de-{slug}-en-{loc}
+        # path broke multi-word queries (returned broad/unrelated results).
+        base = self.BASE + "/ofertas-de-trabajo/?q=" + quote_plus(criteria.keywords)
         if criteria.location:
-            path += f"-en-{_slug(criteria.location)}"
+            base += "&l=" + quote_plus(criteria.location)
 
         for page in range(1, max_pages + 1):
-            url = self.BASE + path + (f"?p={page}" if page > 1 else "")
+            url = base + (f"&p={page}" if page > 1 else "")
             try:
                 resp = self.client.get(url)
                 if resp.status_code != 200:
