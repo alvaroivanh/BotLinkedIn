@@ -34,6 +34,11 @@
             <i class="bi bi-floppy"></i> Guardados {% if saved_count %}<span class="badge bg-secondary">{{ saved_count }}</span>{% endif %}
         </a>
     </li>
+    <li class="nav-item ms-auto">
+        <button class="btn btn-sm btn-outline-success" style="margin-top:3px" onclick="showManualModal()">
+            <i class="bi bi-plus-lg"></i> Agregar manual
+        </button>
+    </li>
 </ul>
 
 <div class="card">
@@ -228,6 +233,46 @@
                 <button type="button" class="btn btn-success btn-sm" id="appliedYes" onclick="confirmApplied()">
                     <i class="bi bi-check-lg"></i> Sí, apliqué
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add manual vacancy modal -->
+<div class="modal fade" id="manualModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-lg"></i> Agregar vacante manual</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">URL de la vacante</label>
+                    <input type="url" class="form-control" id="manUrl" placeholder="https://...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Título / cargo</label>
+                    <input type="text" class="form-control" id="manTitle" placeholder="Ej: Abogado corporativo">
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col"><input type="text" class="form-control" id="manCompany" placeholder="Empresa"></div>
+                    <div class="col"><input type="text" class="form-control" id="manLocation" placeholder="Ubicación"></div>
+                </div>
+                <label class="form-label d-block">¿Ya aplicaste a esta vacante?</label>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="manApplied" id="manAppliedYes" value="1">
+                    <label class="form-check-label" for="manAppliedYes">Sí, ya apliqué</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="manApplied" id="manAppliedNo" value="0" checked>
+                    <label class="form-check-label" for="manAppliedNo">No, aún no</label>
+                </div>
+                <div class="form-text">Si ya aplicaste, la guardo y la paso al tablero de Seguimiento en la etapa “Postulado”.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="manSaveBtn" onclick="submitManual()"><i class="bi bi-check-lg"></i> Guardar</button>
             </div>
         </div>
     </div>
@@ -472,6 +517,51 @@ function markRowApplied(jobId) {
 // Open the chat with Alex, passing this offer as context for HV advice.
 function askAlex() {
     window.location.href = '/chat?job=' + _previewJobId;
+}
+
+// Add a manual vacancy (by URL). If applied, it goes to the Kanban board.
+let _manualModal = null;
+function showManualModal() {
+    ['manUrl', 'manTitle', 'manCompany', 'manLocation'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('manAppliedNo').checked = true;
+    if (!_manualModal) _manualModal = new bootstrap.Modal(document.getElementById('manualModal'));
+    _manualModal.show();
+}
+
+async function submitManual() {
+    const title = document.getElementById('manTitle').value.trim();
+    const url = document.getElementById('manUrl').value.trim();
+    if (!title && !url) { showToast('Indica al menos el título o la URL.', 'danger'); return; }
+    const applied = document.getElementById('manAppliedYes').checked;
+    const btn = document.getElementById('manSaveBtn');
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/jobs/manual', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url, title,
+                company: document.getElementById('manCompany').value.trim(),
+                location: document.getElementById('manLocation').value.trim(),
+                applied,
+            }),
+        });
+        const d = await res.json();
+        if (res.ok) {
+            if (applied && d.in_pipeline) {
+                showToast('Agregada y enviada al tablero (Postulado).', 'success');
+                setTimeout(() => { window.location.href = '/pipeline'; }, 900);
+            } else {
+                showToast('Vacante guardada.', 'success');
+                setTimeout(() => { window.location.href = '/jobs?view=saved'; }, 900);
+            }
+        } else {
+            showToast(d.detail || 'No se pudo guardar.', 'danger');
+            btn.disabled = false;
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+        btn.disabled = false;
+    }
 }
 
 // Compute the AI fit % for the jobs in the current view (cached afterwards).

@@ -258,6 +258,53 @@ def compute_matches(payload: dict = Body(...)):
     return {"ok": True, "count": len(results)}
 
 
+@router.post("/manual")
+def add_manual(payload: dict = Body(...)):
+    """Add a vacancy the user found/applied to manually (by URL). If they already
+    applied, it enters the Kanban (Seguimiento) at the 'postulado' stage."""
+    import hashlib
+
+    from src.db.models import Resume
+
+    title = (payload.get("title") or "").strip() or "Vacante manual"
+    url = (payload.get("url") or "").strip()
+    applied = bool(payload.get("applied"))
+    session = get_session()
+    try:
+        ext = "manual-" + hashlib.md5((url or title).encode()).hexdigest()[:12]
+        job = Job(
+            external_id=ext,
+            platform="manual",
+            title=title,
+            company=(payload.get("company") or "").strip(),
+            location=(payload.get("location") or "").strip(),
+            url=url,
+            saved=True,
+            from_last_search=False,
+        )
+        session.add(job)
+        session.commit()
+
+        in_pipeline = False
+        resume = session.query(Resume).filter_by(is_active=True).first()
+        if resume:
+            stage = "postulado" if applied else "guardado"
+            app = Application(
+                job_id=job.id,
+                resume_id=resume.id,
+                status="applied" if applied else "pending",
+                stage=stage,
+                stage_entered_at=datetime.utcnow(),
+                applied_at=datetime.utcnow() if applied else None,
+            )
+            session.add(app)
+            session.commit()
+            in_pipeline = True
+        return {"ok": True, "job_id": job.id, "applied": applied, "in_pipeline": in_pipeline}
+    finally:
+        session.close()
+
+
 @router.post("/{job_id}/save")
 def toggle_saved(job_id: int):
     """Bookmark / un-bookmark a job (shows up in the 'Guardados' tab)."""
