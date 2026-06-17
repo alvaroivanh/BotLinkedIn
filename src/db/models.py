@@ -43,6 +43,8 @@ class Job(Base):
     skills_required: Mapped[str | None] = mapped_column(Text)  # JSON
     posted_date: Mapped[datetime | None] = mapped_column(DateTime)
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    saved: Mapped[bool] = mapped_column(Boolean, default=False)  # bookmarked by the user
+    from_last_search: Mapped[bool] = mapped_column(Boolean, default=False)  # in the latest search
 
     applications: Mapped[list["Application"]] = relationship(back_populates="job")
 

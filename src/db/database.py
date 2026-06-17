@@ -23,6 +23,25 @@ def init_db():
     """Create all tables if they don't exist, then run light migrations."""
     Base.metadata.create_all(engine)
     _migrate_applications()
+    _migrate_jobs()
+
+
+def _migrate_jobs():
+    """Add the saved / from_last_search columns to an existing jobs table."""
+    insp = inspect(engine)
+    if "jobs" not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns("jobs")}
+    added = []
+    with engine.begin() as conn:
+        if "saved" not in existing:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN saved BOOLEAN DEFAULT 0"))
+            added.append("saved")
+        if "from_last_search" not in existing:
+            conn.execute(text("ALTER TABLE jobs ADD COLUMN from_last_search BOOLEAN DEFAULT 0"))
+            # Backfill: treat current jobs as the latest search so the page isn't empty.
+            conn.execute(text("UPDATE jobs SET from_last_search = 1"))
+            added.append("from_last_search")
 
 
 def _migrate_applications():

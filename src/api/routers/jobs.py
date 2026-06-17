@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from src.api.schemas import JobResponse, JobSearchRequest
 from src.db.database import get_session
-from src.db.models import Application
+from src.db.models import Application, Job
 from src.db.repository import JobRepo, ResumeRepo, SearchHistoryRepo
 from src.scraper.models import SearchCriteria
 
@@ -160,9 +160,25 @@ def job_preview(job_id: int):
         "platform": job.platform,
         "description": description,
         "match": match,
+        "saved": bool(job.saved),
     }
     session.close()
     return result
+
+
+@router.post("/{job_id}/save")
+def toggle_saved(job_id: int):
+    """Bookmark / un-bookmark a job (shows up in the 'Guardados' tab)."""
+    session = get_session()
+    try:
+        job = session.query(Job).get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Empleo no encontrado")
+        job.saved = not job.saved
+        session.commit()
+        return {"ok": True, "saved": job.saved}
+    finally:
+        session.close()
 
 
 @router.post("/{job_id}/applied")
@@ -267,6 +283,17 @@ def search_jobs(data: JobSearchRequest):
                 description=job.description,
             )
             saved_jobs.append(saved)
+
+        # Mark ONLY this search's results as the current "found" set, so the
+        # Empleos list refreshes instead of accumulating old searches.
+        session.query(Job).filter(Job.from_last_search.is_(True)).update(
+            {Job.from_last_search: False}
+        )
+        ids = [j.id for j in saved_jobs]
+        if ids:
+            session.query(Job).filter(Job.id.in_(ids)).update(
+                {Job.from_last_search: True}, synchronize_session=False
+            )
 
         SearchHistoryRepo(session).save(
             criteria.model_dump(), ",".join(data.platforms), len(all_jobs)

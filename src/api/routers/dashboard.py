@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from src.api.schemas import DashboardStats
 from src.cv.matcher import match_score
 from src.db.database import get_session
+from src.db.models import Job
 from src.db.repository import ApplicationRepo, JobRepo, LetterRepo, ResumeRepo
 
 router = APIRouter()
@@ -30,9 +31,16 @@ def applications_page(request: Request, status: str = ""):
 
 
 @router.get("/jobs", response_class=HTMLResponse)
-def jobs_page(request: Request):
+def jobs_page(request: Request, view: str = "found"):
     session = get_session()
-    jobs = JobRepo(session).list_all(limit=1000)
+    query = session.query(Job)
+    if view == "saved":
+        query = query.filter(Job.saved.is_(True))
+    else:
+        view = "found"
+        query = query.filter(Job.from_last_search.is_(True))
+    jobs = query.order_by(Job.scraped_at.desc()).limit(1000).all()
+
     applied_ids = {a.job_id for a in ApplicationRepo(session).list_all(status="applied")}
     resume = ResumeRepo(session).get_parsed_data()
     # % match between the resume and each job (heuristic, no AI cost).
@@ -40,11 +48,18 @@ def jobs_page(request: Request):
         {j.id: match_score(resume, j.title, j.description or "") for j in jobs}
         if resume else {}
     )
+    saved_count = session.query(Job).filter(Job.saved.is_(True)).count()
     session.close()
     return templates.TemplateResponse(
         request,
         "jobs.html",
-        {"jobs": jobs, "applied_ids": applied_ids, "match_scores": match_scores},
+        {
+            "jobs": jobs,
+            "applied_ids": applied_ids,
+            "match_scores": match_scores,
+            "view": view,
+            "saved_count": saved_count,
+        },
     )
 
 

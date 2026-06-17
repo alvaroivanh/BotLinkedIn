@@ -11,12 +11,25 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-briefcase"></i> Empleos Encontrados</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-briefcase"></i> Empleos</h2>
     <button class="btn btn-primary" onclick="searchJobs()">
         <i class="bi bi-search"></i> Nueva Busqueda
     </button>
 </div>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link {% if view != 'saved' %}active{% endif %}" href="/jobs">
+            <i class="bi bi-search"></i> Encontrados
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if view == 'saved' %}active{% endif %}" href="/jobs?view=saved">
+            <i class="bi bi-floppy"></i> Guardados {% if saved_count %}<span class="badge bg-secondary">{{ saved_count }}</span>{% endif %}
+        </a>
+    </li>
+</ul>
 
 <div class="card">
     <div class="card-body">
@@ -128,6 +141,9 @@
                             {% if is_applied %}
                             <span class="badge bg-success" title="Ya te postulaste"><i class="bi bi-check-lg"></i> Aplicado</span>
                             {% endif %}
+                            <button class="btn btn-sm btn-outline-{% if job.saved %}warning{% else %}secondary{% endif %}" onclick="toggleSave({{ job.id }}, this)" title="{% if job.saved %}Quitar de guardados{% else %}Guardar{% endif %}">
+                                <i class="bi bi-floppy{% if job.saved %}-fill{% endif %}"></i>
+                            </button>
                             <a href="{{ job.url }}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" class="btn btn-sm btn-outline-primary" title="Abrir">
                                 <i class="bi bi-box-arrow-up-right"></i>
                             </a>
@@ -166,6 +182,9 @@
                 </button>
                 <button type="button" class="btn btn-outline-dark" onclick="addToPipeline()">
                     <i class="bi bi-kanban"></i> Guardar en seguimiento
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="jpSave" onclick="toggleSavePopup()">
+                    <i class="bi bi-floppy"></i> Guardar
                 </button>
                 <button type="button" class="btn btn-info" onclick="askAlex()">
                     <i class="bi bi-robot"></i> Consejo de Alex (ajustar HV)
@@ -358,6 +377,7 @@ function openJobModal(jobId, url) {
             document.getElementById('jpMatch').innerHTML = (m != null)
                 ? '<span class="badge bg-' + (m >= 60 ? 'success' : m >= 40 ? 'warning text-dark' : 'secondary') + '"><i class="bi bi-graph-up-arrow"></i> Tu HV se ajusta ' + m + '% a esta oferta</span>'
                 : '';
+            setSaveBtn(!!d.saved);
             // Some Colombian portals block direct access (403). Tell the user the
             // full offer is already here and how to reach the portal to apply.
             const portals = { computrabajo: 'https://co.computrabajo.com/', elempleo: 'https://www.elempleo.com/co/' };
@@ -435,6 +455,39 @@ function markRowApplied(jobId) {
 // Open the chat with Alex, passing this offer as context for HV advice.
 function askAlex() {
     window.location.href = '/chat?job=' + _previewJobId;
+}
+
+// Bookmark / un-bookmark a job from the row floppy button.
+async function toggleSave(id, btn) {
+    try {
+        const res = await fetch('/api/jobs/' + id + '/save', { method: 'POST' });
+        const d = await res.json();
+        btn.querySelector('i').className = 'bi bi-floppy' + (d.saved ? '-fill' : '');
+        btn.classList.toggle('btn-outline-warning', d.saved);
+        btn.classList.toggle('btn-outline-secondary', !d.saved);
+        btn.title = d.saved ? 'Quitar de guardados' : 'Guardar';
+        showToast(d.saved ? 'Guardado.' : 'Quitado de guardados.', 'success');
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+
+function setSaveBtn(saved) {
+    const btn = document.getElementById('jpSave');
+    btn.innerHTML = '<i class="bi bi-floppy' + (saved ? '-fill' : '') + '"></i> ' + (saved ? 'Guardado' : 'Guardar');
+    btn.classList.toggle('btn-warning', saved);
+    btn.classList.toggle('btn-outline-secondary', !saved);
+}
+
+async function toggleSavePopup() {
+    try {
+        const res = await fetch('/api/jobs/' + _previewJobId + '/save', { method: 'POST' });
+        const d = await res.json();
+        setSaveBtn(d.saved);
+        showToast(d.saved ? 'Guardado.' : 'Quitado de guardados.', 'success');
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
 }
 
 // Add this job to the pipeline board at the "Guardado" stage.
